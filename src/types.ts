@@ -1,11 +1,12 @@
 export type HitKind = "pulse" | "snap" | "edge";
-export type Difficulty = "easy" | "normal" | "hard" | "expert";
+export type Difficulty = "easy" | "normal" | "hard" | "expert" | "master";
 export const DIFFICULTIES: { id: Difficulty; label: string; level: number }[] =
   [
-    { id: "easy", label: "かんたん", level: 2 },
-    { id: "normal", label: "ふつう", level: 4 },
-    { id: "hard", label: "むずかしい", level: 7 },
-    { id: "expert", label: "鬼", level: 10 },
+    { id: "easy", label: "EASY", level: 3 },
+    { id: "normal", label: "NORMAL", level: 8 },
+    { id: "hard", label: "HARD", level: 15 },
+    { id: "expert", label: "EXPERT", level: 23 },
+    { id: "master", label: "MASTER", level: 29 },
   ];
 export const HIT_KINDS: HitKind[] = ["pulse", "snap", "edge"];
 export const HIT_STYLE = {
@@ -47,6 +48,19 @@ export interface Note {
   kind: HitKind;
   accent: boolean;
 }
+export type StageGrade = Grade | "bad";
+export interface StageNote extends Note {
+  type: "tap" | "hold" | "flick";
+  lane: number;
+  width: number;
+  endTime?: number;
+  path?: { time: number; lane: number }[];
+  endFlick?: boolean;
+  direction?: -1 | 0 | 1;
+  tick?: number;
+}
+/** Song ms, pointer id, down/move/up/cancel, lane*100, vertical position*1000. */
+export type StageInput = [number, number, 0 | 1 | 2 | 3, number, number];
 export interface Song {
   id: string;
   title: string;
@@ -119,7 +133,11 @@ export interface Result {
   ranked?: boolean;
   groupId?: string;
   ticket?: string;
-  replay?: ReplayHit[];
+  replay?: StageInput[];
+  bad?: number;
+  life?: number;
+  cleared?: boolean;
+  flickErrors?: number;
   xpEarned?: number;
   rankBonus?: number;
   previousLevel?: number;

@@ -9,7 +9,7 @@ export const settingsSchema = z.object({
   ambient: z.number().min(0).max(0.2).optional(),
   visualOffset: z.number().int().min(-250).max(250).optional(),
   theme: z.enum(["pearl", "sunset", "neon", "aurora"]).optional(),
-  scrollSpeed: z.number().min(.6).max(2).optional(),
+  scrollSpeed: z.number().min(0.6).max(2).optional(),
   calibratedAt: z.number().int().optional(),
 });
 export const resultSchema = z
@@ -17,7 +17,7 @@ export const resultSchema = z
     id: z.string().uuid(),
     songId: z.string().min(1).max(100),
     title: z.string().min(1).max(140),
-    difficulty: z.enum(["easy", "normal", "hard", "expert"]),
+    difficulty: z.enum(["easy", "normal", "hard", "expert", "master"]),
     perfect: z.number().int().min(0).max(10000),
     great: z.number().int().min(0).max(10000),
     good: z.number().int().min(0).max(10000),

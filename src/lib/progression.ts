@@ -6,6 +6,9 @@ export const THEMES = [
   { id: "aurora", label: "オーロラ", level: 8 },
 ];
 export const EXPERT_LEVEL = 5;
+export function difficultyLevel(difficulty: string) {
+  return difficulty === "master" ? 8 : difficulty === "expert" ? 5 : 1;
+}
 export const UNLOCKS = [
   {
     level: 2,
@@ -17,12 +20,16 @@ export const UNLOCKS = [
     label: "サンセット・音楽好き",
     detail: "テーマとステータスを解放",
   },
-  { level: 5, label: "鬼・ネオン", detail: "最高難易度と新テーマを解放" },
-  { level: 8, label: "オーロラ", detail: "特別なカラーとコンボ演出" },
+  { level: 5, label: "EXPERT・ネオン", detail: "高難易度と新テーマを解放" },
+  {
+    level: 8,
+    label: "MASTER・オーロラ",
+    detail: "最高難易度と特別なコンボ演出",
+  },
   { level: 10, label: "ステージマスター", detail: "マスターステータスを獲得" },
 ];
 export function difficultyUnlocked(level: number, difficulty: string) {
-  return difficulty !== "expert" || level >= EXPERT_LEVEL;
+  return level >= difficultyLevel(difficulty);
 }
 export function progression(
   xp = 0,

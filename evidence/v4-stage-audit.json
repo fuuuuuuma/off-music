@@ -1,0 +1,164 @@
+{
+  "date": "2026-10-26",
+  "version": "lanes-v4.0",
+  "charts": [
+    {
+      "difficulty": "easy",
+      "heads": 252,
+      "combo": 302,
+      "taps": 240,
+      "holds": 12,
+      "flicks": 0,
+      "critical": 7,
+      "perfectReplay": {
+        "score": 1000000,
+        "perfect": 302,
+        "miss": 0,
+        "maxCombo": 302
+      }
+    },
+    {
+      "difficulty": "normal",
+      "heads": 537,
+      "combo": 672,
+      "taps": 455,
+      "holds": 36,
+      "flicks": 46,
+      "critical": 15,
+      "perfectReplay": {
+        "score": 1000000,
+        "perfect": 672,
+        "miss": 0,
+        "maxCombo": 672
+      }
+    },
+    {
+      "difficulty": "hard",
+      "heads": 884,
+      "combo": 1100,
+      "taps": 747,
+      "holds": 62,
+      "flicks": 75,
+      "critical": 9,
+      "perfectReplay": {
+        "score": 1000000,
+        "perfect": 1100,
+        "miss": 0,
+        "maxCombo": 1100
+      }
+    },
+    {
+      "difficulty": "expert",
+      "heads": 1049,
+      "combo": 1376,
+      "taps": 801,
+      "holds": 97,
+      "flicks": 151,
+      "critical": 9,
+      "perfectReplay": {
+        "score": 1000000,
+        "perfect": 1376,
+        "miss": 0,
+        "maxCombo": 1376
+      }
+    },
+    {
+      "difficulty": "master",
+      "heads": 1102,
+      "combo": 1431,
+      "taps": 844,
+      "holds": 97,
+      "flicks": 161,
+      "critical": 12,
+      "perfectReplay": {
+        "score": 1000000,
+        "perfect": 1431,
+        "miss": 0,
+        "maxCombo": 1431
+      }
+    }
+  ],
+  "browser": {
+    "song": "V4 VOCAL TEST / Suno original Japanese vocals",
+    "duration": 32.4135,
+    "bpm": 133.4,
+    "records": [
+      {
+        "score": 2482,
+        "perfect": 0,
+        "great": 0,
+        "good": 1,
+        "bad": 0,
+        "miss": 139,
+        "total": 140,
+        "maxCombo": 0,
+        "meanOffset": 83.59999999999879,
+        "life": 0,
+        "ranked": true
+      },
+      {
+        "score": 42553,
+        "perfect": 6,
+        "great": 0,
+        "good": 0,
+        "bad": 0,
+        "miss": 134,
+        "total": 140,
+        "maxCombo": 3,
+        "meanOffset": -2.1999999999999056,
+        "life": 0,
+        "ranked": true
+      },
+      {
+        "score": 28723,
+        "perfect": 3,
+        "great": 1,
+        "good": 1,
+        "bad": 0,
+        "miss": 135,
+        "total": 140,
+        "maxCombo": 2,
+        "meanOffset": 76.29999999999981,
+        "life": 0,
+        "ranked": true
+      }
+    ],
+    "inputTest": "Keyboard Shift+K at 1.655s, K held about883ms from2.341s, mouse pointer held on highway about883ms. Client 42553 matched server 42553 (6 PERFECT). Mouse trial ended 28723.",
+    "layout": "v4-layout.json",
+    "rotation": "390x844 pauses; landscape resumes; no console errors."
+  },
+  "limits": [
+    "The perfect replays above are deterministic software fixtures, not live human input accuracy.",
+    "Browser timing is UI automation, not a physical phone-speaker or touchscreen latency measurement.",
+    "BPM analysis can have half/double ambiguity. Hold interiors are beat-based checkpoints; start/end attacks are measured."
+  ],
+  "public": {
+    "version": "4.0.0",
+    "worker": "d99be60b-fead-4bcf-b9f1-c23a85b3ef18",
+    "song": "Play & Pay",
+    "difficulty": "master",
+    "duration": 133.65,
+    "comboPoints": 1431,
+    "completed": true,
+    "qa": true,
+    "score": 4219,
+    "perfect": 6,
+    "bad": 1,
+    "miss": 1424,
+    "maxCombo": 2,
+    "xpSaved": 0,
+    "consoleErrors": 0
+  },
+  "verification": {
+    "tests": 93,
+    "files": 7,
+    "typecheck": true,
+    "productionBuild": true,
+    "productionDependenciesAuditFindings": 0,
+    "ownerReset": {
+      "results": 0,
+      "xpEvents": 0,
+      "readyAddedSongs": 0
+    }
+  }
+}

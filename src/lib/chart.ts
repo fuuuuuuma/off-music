@@ -34,11 +34,17 @@ export function createChart(
   bpmOverride?: number,
 ): Note[] {
   const beat = 60 / (bpmOverride || analysis.bpm),
-    division = { easy: 1, normal: 2, hard: 4, expert: 8 }[difficulty],
+    division = { easy: 1, normal: 2, hard: 4, expert: 8, master: 12 }[
+      difficulty
+    ],
     step = beat / division;
-  const threshold = { easy: 0.32, normal: 0.19, hard: 0.12, expert: 0.09 }[
-    difficulty
-  ];
+  const threshold = {
+    easy: 0.32,
+    normal: 0.19,
+    hard: 0.12,
+    expert: 0.09,
+    master: 0.075,
+  }[difficulty];
   const slots = new Map<
     number,
     { peak: Analysis["peaks"][number]; score: number }
@@ -69,7 +75,10 @@ export function createChart(
     if (!existing || score > existing.score)
       slots.set(slot, { peak: p, score });
   }
-  const minGap = Math.max(difficulty === "expert" ? 0.055 : 0.075, step * 0.58),
+  const minGap = Math.max(
+      difficulty === "master" ? 0.045 : difficulty === "expert" ? 0.055 : 0.075,
+      step * 0.58,
+    ),
     ranked = [...slots.values()].sort((a, b) => b.score - a.score),
     chosen: typeof ranked = [];
   for (const candidate of ranked) {

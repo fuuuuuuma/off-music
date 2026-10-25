@@ -2,8 +2,8 @@ import { beforeEach, describe, it, expect } from "vitest";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
 import app, { hash } from "./index.ts";
-import { createChart } from "../src/lib/chart.ts";
-import { HIT_KINDS } from "../src/types.ts";
+import { createChart, CHART_VERSION } from "../src/lib/stage-chart.ts";
+import { perfectInputs } from "../src/lib/stage-fixtures.ts";
 let sql: DatabaseSync;
 const messages: string[] = [];
 const objects = new Map<string, ArrayBuffer>();
@@ -116,6 +116,7 @@ const analysis = JSON.parse(
 );
 async function start(groupId: string, speed = 1, practice = false) {
   const r = await request("/plays", "alice", {
+    chartVersion: CHART_VERSION,
     songId: "glass-circuit",
     title: "Wrong title",
     duration: analysis.duration,
@@ -209,10 +210,7 @@ describe("サーバー再判定と成長の一度だけ保存", () => {
   it("クライアント申告を使わず再生記録から100万点を計算し、再送してもXPを増やさない", async () => {
     const g = await group(),
       ticket = await start(g.id),
-      hits = createChart(analysis, "normal").map((n) => [
-        Math.round(n.time * 1000),
-        HIT_KINDS.indexOf(n.kind),
-      ]);
+      hits = perfectInputs(createChart(analysis, "normal"));
     expect(
       (await request(`/plays/${ticket}/finish`, "alice", { hits })).status,
     ).toBe(400);
@@ -298,10 +296,7 @@ async function finishPerfect(ticket: string, who = "alice") {
   sql
     .prepare("UPDATE plays SET started_at=? WHERE id=?")
     .run(Date.now() - analysis.duration * 1000 - 4000, ticket);
-  const hits = createChart(analysis, "normal").map((n) => [
-    Math.round(n.time * 1000),
-    HIT_KINDS.indexOf(n.kind),
-  ]);
+  const hits = perfectInputs(createChart(analysis, "normal"));
   const r = await request(`/plays/${ticket}/finish`, who, { hits });
   expect(r.status).toBe(200);
   return (await r.json()) as any;
@@ -330,9 +325,10 @@ describe("Codexに依存しない全ユーザー公開", () => {
         .status,
     ).toBe(401);
   });
-  it("未解放の鬼をAPIでも拒否し、Lv.5で許可する", async () => {
+  it("未解放のEXPERTをAPIでも拒否し、Lv.5で許可する", async () => {
     await request("/groups");
     const input = {
+      chartVersion: CHART_VERSION,
       songId: "glass-circuit",
       title: "Test",
       duration: analysis.duration,
@@ -364,7 +360,9 @@ describe("Codexに依存しない全ユーザー公開", () => {
     await request("/groups");
     await finishPerfect(await start(community));
     sql.prepare("DELETE FROM plays WHERE user_id=?").run("alice");
-    const body=await (await request(`/groups/${community}/discovery`)).json() as any;
+    const body = (await (
+      await request(`/groups/${community}/discovery`)
+    ).json()) as any;
     expect(body.stats[0].plays).toBe(1);
   });
   it("3人以上の順位でボーナスを一度だけ付与する", async () => {
@@ -381,7 +379,7 @@ describe("Codexに依存しない全ユーザー公開", () => {
           "glass-circuit",
           "normal",
           who,
-          "rhythm-v3.1",
+          CHART_VERSION,
           score,
           score / 10000,
           2,
@@ -408,8 +406,10 @@ describe("Codexに依存しない全ユーザー公開", () => {
     expect((await request("/reset", "alice", {})).status).toBe(200);
     const clean = (await (await request("/progress")).json()) as any;
     expect(clean.progress.xp).toBe(0);
-    const backup=await (await request("/reset")).json() as any;
-    const repeatReset=await (await request("/reset","alice",{})).json() as any;
+    const backup = (await (await request("/reset")).json()) as any;
+    const repeatReset = (await (
+      await request("/reset", "alice", {})
+    ).json()) as any;
     expect(repeatReset.backupId).toBe(backup.backup.id);
     expect(
       (await request(`/groups/${community}/songs/${aliceSong}/audio`, "bob"))
@@ -428,5 +428,105 @@ describe("Codexに依存しない全ユーザー公開", () => {
       (await request(`/groups/${community}/songs/${aliceSong}/audio`, "bob"))
         .status,
     ).toBe(200);
+  });
+});
+
+describe("v4操作と版の検証", () => {
+  it("旧クライアントの開始を再読込案内で拒否する", async () => {
+    const r = await request("/plays", "alice", {
+      songId: "glass-circuit",
+      title: "old",
+      duration: analysis.duration,
+      difficulty: "normal",
+      speed: 1,
+      practice: false,
+    });
+    expect(r.status).toBe(409);
+  });
+  it("MASTERはLv.8で許可し、v4の位置/動作で再判定する", async () => {
+    const g = await group();
+    const input = {
+      chartVersion: CHART_VERSION,
+      songId: "glass-circuit",
+      title: "Test",
+      duration: analysis.duration,
+      difficulty: "master",
+      speed: 1,
+      practice: false,
+      groupId: g.id,
+    };
+    expect((await request("/plays", "alice", input)).status).toBe(403);
+    sql.prepare("INSERT INTO progress VALUES(?,3920,30,0,100)").run("alice");
+    const r = await request("/plays", "alice", input);
+    expect(r.status).toBe(200);
+    const { ticket } = (await r.json()) as any;
+    sql
+      .prepare("UPDATE plays SET started_at=? WHERE id=?")
+      .run(Date.now() - analysis.duration * 1000 - 4000, ticket);
+    expect(
+      (
+        await request(
+          `/groups/${g.id}/rankings?song=glass-circuit&difficulty=master`,
+        )
+      ).status,
+    ).toBe(200);
+    const correct = perfectInputs(createChart(analysis, "master"));
+    const wrong = correct.map((e) => [e[0], e[1], e[2], 0, e[4]]);
+    const finished = await request(`/plays/${ticket}/finish`, "alice", {
+      hits: wrong,
+      score: 1000000,
+    });
+    expect(finished.status).toBe(200);
+    const body = (await finished.json()) as any;
+    expect(body.result.score).toBeLessThan(900000);
+    expect(body.result.miss).toBeGreaterThan(0);
+    expect(body.result.chartVersion).toBe(CHART_VERSION);
+  });
+});
+
+describe("旧方式との成績分離", () => {
+  it("旧版の100万点を新方式の順位へ混ぜず、新版だけを集計する", async () => {
+    const g = await group();
+    const insert = sql.prepare(
+      "INSERT INTO leaderboard_v3 VALUES(?,?,?,?,?,?,?,?,?,?)",
+    );
+    insert.run(
+      g.id,
+      "glass-circuit",
+      "normal",
+      "alice",
+      "rhythm-v3.1",
+      1000000,
+      100,
+      500,
+      "legacy",
+      Date.now(),
+    );
+    const legacy = (await (
+      await request(`/groups/${g.id}/rankings`)
+    ).json()) as any;
+    expect(legacy.rows[0].score).toBe(0);
+    const legacySong = (await (
+      await request(
+        `/groups/${g.id}/rankings?song=glass-circuit&difficulty=normal`,
+      )
+    ).json()) as any;
+    expect(legacySong.rows).toHaveLength(0);
+    insert.run(
+      g.id,
+      "glass-circuit",
+      "normal",
+      "alice",
+      CHART_VERSION,
+      123456,
+      12.3456,
+      3,
+      "current",
+      Date.now(),
+    );
+    const current = (await (
+      await request(`/groups/${g.id}/rankings`)
+    ).json()) as any;
+    expect(current.rows[0].score).toBe(123456);
   });
 });

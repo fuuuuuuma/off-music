@@ -2,8 +2,22 @@ import { Hono } from "hono";
 import type { ContextType } from "./env.ts";
 const router = new Hono<ContextType>();
 async function broadcast(c: import("hono").Context<ContextType>, user: string) {
-  const groups = await c.env.DB.prepare("SELECT group_id FROM members WHERE user_id=?").bind(user).all<{group_id:string}>();
-  await Promise.allSettled(groups.results.map(g=>c.env.ROOMS.get(c.env.ROOMS.idFromName(g.group_id)).fetch("https://room/broadcast",{method:"POST",body:JSON.stringify({type:"songs.changed",at:Date.now()})})));
+  const groups = await c.env.DB.prepare(
+    "SELECT group_id FROM members WHERE user_id=?",
+  )
+    .bind(user)
+    .all<{ group_id: string }>();
+  await Promise.allSettled(
+    groups.results.map((g) =>
+      c.env.ROOMS.get(c.env.ROOMS.idFromName(g.group_id)).fetch(
+        "https://room/broadcast",
+        {
+          method: "POST",
+          body: JSON.stringify({ type: "songs.changed", at: Date.now() }),
+        },
+      ),
+    ),
+  );
 }
 const tables = {
   song_activity: "group_id,song_id,user_id,plays,last_played_at",
@@ -22,10 +36,26 @@ const tables = {
 router.post("/reset", async (c) => {
   const user = c.get("user").id,
     id = crypto.randomUUID(),
-    createdAt=Date.now();
-  const latest = await c.env.DB.prepare("SELECT id,created_at FROM reset_backups WHERE user_id=? ORDER BY created_at DESC LIMIT 1").bind(user).first<{id:string;created_at:number}>();
-  const active = await c.env.DB.prepare("SELECT (SELECT COUNT(*) FROM results WHERE user_id=?)+(SELECT COUNT(*) FROM progress_events WHERE user_id=?)+(SELECT COUNT(*) FROM group_songs WHERE creator_id=? AND status!='archived') AS n").bind(user,user,user).first<{n:number}>();
-  if(latest && !active?.n) return c.json({ok:true,backupId:latest.id,createdAt:latest.created_at});
+    createdAt = Date.now();
+  const latest = await c.env.DB.prepare(
+    "SELECT id,created_at FROM reset_backups WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
+  )
+    .bind(user)
+    .first<{ id: string; created_at: number }>();
+  const active = await c.env.DB.prepare(
+    "SELECT (SELECT COUNT(*) FROM results WHERE user_id=?)+(SELECT COUNT(*) FROM progress_events WHERE user_id=?)+(SELECT COUNT(*) FROM group_songs WHERE creator_id=? AND status!='archived') AS n",
+  )
+    .bind(user, user, user)
+    .first<{ n: number }>();
+  if (latest && !active?.n) {
+    await c.env.DB.prepare(
+      "UPDATE reset_backups SET data=json_set(data,'$.snapshotAt',COALESCE(json_extract(data,'$.snapshotAt'),created_at)),created_at=? WHERE id=? AND user_id=?",
+    )
+      .bind(createdAt, latest.id, user)
+      .run();
+    await broadcast(c, user);
+    return c.json({ ok: true, backupId: latest.id, createdAt });
+  }
   const statements = [
     c.env.DB.prepare("INSERT INTO reset_backups VALUES(?,?,?,?)").bind(
       id,
@@ -43,10 +73,11 @@ router.post("/reset", async (c) => {
         ? "id"
         : table === "leaderboard_v3"
           ? "group_id||':'||song_id||':'||difficulty||':'||chart_version"
-          : table === "song_activity" ? "group_id||':'||song_id"
-          : table.startsWith("leaderboard")
-            ? "group_id||':'||song_id||':'||difficulty"
-            : "user_id";
+          : table === "song_activity"
+            ? "group_id||':'||song_id"
+            : table.startsWith("leaderboard")
+              ? "group_id||':'||song_id||':'||difficulty"
+              : "user_id";
     statements.push(
       c.env.DB.prepare(
         `INSERT INTO reset_backup_items SELECT ?,'${table}',${key},json_object(${json}) FROM ${table} WHERE ${table === "group_songs" ? "creator_id" : "user_id"}=?`,
@@ -73,8 +104,8 @@ router.post("/reset", async (c) => {
       "UPDATE preferences SET data=json_set(data,'$.theme','pearl') WHERE user_id=?",
     ).bind(user),
   ]);
-  await broadcast(c,user);
-  return c.json({ ok: true, backupId: id,createdAt });
+  await broadcast(c, user);
+  return c.json({ ok: true, backupId: id, createdAt });
 });
 router.get("/reset", async (c) => {
   const backup = await c.env.DB.prepare(
@@ -117,7 +148,7 @@ router.post("/reset/restore", async (c) => {
     );
   }
   await c.env.DB.batch(statements);
-  await broadcast(c,user);
+  await broadcast(c, user);
   return c.json({ ok: true });
 });
 export default router;

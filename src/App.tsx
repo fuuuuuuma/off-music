@@ -58,7 +58,12 @@ import {
   stopAmbience,
   unlockAudio,
 } from "./lib/audio.ts";
-import { CHART_VERSION, createChart } from "./lib/chart.ts";
+import {
+  CHART_VERSION,
+  createChart,
+  NOTE_STYLE,
+  stagePoints,
+} from "./lib/stage-chart.ts";
 import { api, setApiUser } from "./lib/api.ts";
 import { store } from "./lib/storage.ts";
 import {
@@ -67,17 +72,15 @@ import {
   playXp,
   difficultyUnlocked,
   UNLOCKS,
-  EXPERT_LEVEL,
+  difficultyLevel,
 } from "./lib/progression.ts";
 import {
   DEFAULT_SETTINGS,
   DIFFICULTIES,
-  HIT_KINDS,
-  HIT_STYLE,
   type Analysis,
   type Difficulty,
   type Group,
-  type Note,
+  type StageNote as Note,
   type Progress,
   type RankingRow,
   type Result,
@@ -212,7 +215,6 @@ export default function App() {
     [uploadMode, setUploadMode] = useState<"public" | "local">("public"),
     [publicRights, setPublicRights] = useState(false),
     [publicName, setPublicName] = useState(""),
-
     [results, setResults] = useState<Result[]>([]),
     [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS),
     [user, setUser] = useState<User | null>(null),
@@ -321,7 +323,7 @@ export default function App() {
       api<{ results: Result[] }>("/me/results"),
       api<{ progress: Progress }>("/me/progress"),
       api<{ settings: Settings | null }>("/me/settings"),
-      api<{backup:{created_at:number}|null}>("/me/reset"),
+      api<{ backup: { created_at: number } | null }>("/me/reset"),
     ]);
     if (userRef.current?.id !== id) return;
     if (data[0].status === "fulfilled") {
@@ -337,7 +339,19 @@ export default function App() {
     if (data[2].status === "fulfilled" && data[2].value.settings) {
       setSettings({ ...DEFAULT_SETTINGS, ...data[2].value.settings });
     }
-    if(!QA_MODE&&data[3].status==='fulfilled'&&data[3].value.backup){const at=data[3].value.backup.created_at;if(at>await store.seenReset(id)){await store.reset(id);await store.markReset(id,at);setSongs(prev=>prev.filter(s=>s.builtin));setResults(data[0].status==='fulfilled'?data[0].value.results.map(r=>({...r,ownerId:id})):[]);}}
+    if (!QA_MODE && data[3].status === "fulfilled" && data[3].value.backup) {
+      const at = data[3].value.backup.created_at;
+      if (at > (await store.seenReset(id))) {
+        await store.reset(id);
+        await store.markReset(id, at);
+        setSongs((prev) => prev.filter((s) => s.builtin));
+        setResults(
+          data[0].status === "fulfilled"
+            ? data[0].value.results.map((r) => ({ ...r, ownerId: id }))
+            : [],
+        );
+      }
+    }
     await loadGroups();
   }
   async function initialize() {
@@ -596,7 +610,9 @@ export default function App() {
   async function play(song = selected) {
     if (!song || busy) return;
     if (!QA_MODE && !difficultyUnlocked(progress.level, difficulty)) {
-      notify("鬼はLv.5で解放されます");
+      notify(
+        `${difficulty.toUpperCase()}はLv.${difficultyLevel(difficulty)}で解放されます`,
+      );
       return;
     }
     if (!user && !sessionStorage.getItem("off-guest")) {
@@ -625,6 +641,18 @@ export default function App() {
     try {
       await unlockAudio();
       let current = song;
+      if (song.groupId && !song.analysisLoaded) {
+        const { analysis } = await api<{ analysis: Analysis }>(
+          `/me/groups/${song.groupId}/songs/${song.id}/analysis`,
+        );
+        current = {
+          ...song,
+          analysis,
+          analysisLoaded: true,
+          bpm: analysis.bpm,
+          duration: analysis.duration,
+        };
+      }
       const blob =
         song.blob ||
         (await fetch(song.source!, { credentials: "same-origin" }).then((r) => {
@@ -635,7 +663,7 @@ export default function App() {
           return r.blob();
         }));
       const buffer = await decodeAudio(blob!);
-      if (song.analysis.version !== 2) {
+      if (current.analysis.version !== 2) {
         setBusyText("発音位置を再解析中");
         const analysis = await analyzeAudio(buffer, (p) =>
           setUploadProgress(p),
@@ -664,6 +692,7 @@ export default function App() {
       if (user && !QA_MODE) {
         setBusyText("プレイを登録中");
         const r = await api<{ ticket: string; ranked: boolean }>("/me/plays", {
+          chartVersion: CHART_VERSION,
           songId: current.id,
           title: current.title,
           duration: current.duration,
@@ -714,7 +743,7 @@ export default function App() {
     setFinished(final);
     setPanel(null);
     chime(
-      result.miss === 0
+      result.miss + result.good + (result.bad || 0) === 0
         ? [60, 64, 67, 72, 76, 79, 84]
         : result.accuracy >= 65
           ? [60, 64, 67, 72, 79]
@@ -754,7 +783,10 @@ export default function App() {
       }
     } else {
       const p = profileRef.current,
-        xp = playXp(result.score, result.miss),
+        xp = playXp(
+          result.score,
+          result.miss + result.good + (result.bad || 0),
+        ),
         next = progression(
           p.xp + xp,
           p.plays + 1,
@@ -875,10 +907,14 @@ export default function App() {
           (await response.json()).error || "音源を公開できませんでした",
         );
     }
-    const {analysis:canonical}=await api<{analysis:Analysis}>(`/me/groups/${scope}/songs/${r.id}/analysis`);
+    const { analysis: canonical } = await api<{ analysis: Analysis }>(
+      `/me/groups/${scope}/songs/${r.id}/analysis`,
+    );
     return {
       ...song,
-      analysis:canonical,bpm:canonical.bpm,duration:canonical.duration,
+      analysis: canonical,
+      bpm: canonical.bpm,
+      duration: canonical.duration,
       id: r.id,
       groupId: scope,
       canonical: true,
@@ -1073,9 +1109,9 @@ export default function App() {
     setBusy(true);
     setBusyText("データをリセット中");
     try {
-      const reset=await api<{createdAt:number}>("/me/reset", {});
+      const reset = await api<{ createdAt: number }>("/me/reset", {});
       await store.reset(user.id);
-      await store.markReset(user.id,reset.createdAt);
+      await store.markReset(user.id, reset.createdAt);
       setSongs((prev) => prev.filter((s) => s.builtin));
       setResults([]);
       setProgress(progression());
@@ -1099,8 +1135,8 @@ export default function App() {
     try {
       await api("/me/reset/restore", {});
       await store.restoreReset(user.id);
-      const latest=await api<{backup:{created_at:number}}>("/me/reset");
-      await store.markReset(user.id,latest.backup.created_at);
+      const latest = await api<{ backup: { created_at: number } }>("/me/reset");
+      await store.markReset(user.id, latest.backup.created_at);
       await loadProfile();
       setSongs([
         ...(await store.songs()).filter((s) => !s.builtin),
@@ -1139,7 +1175,9 @@ export default function App() {
     best = (id: string) =>
       Math.max(
         0,
-        ...localRecords.filter((r) => r.songId === id).map((r) => r.score),
+        ...localRecords
+          .filter((r) => r.songId === id && r.chartVersion === CHART_VERSION)
+          .map((r) => r.score),
       );
   if (loading) return <Skeleton />;
   if (initialError)
@@ -1159,7 +1197,7 @@ export default function App() {
           "app-v2 theme-" +
           (settings.theme || "pearl") +
           (settings.reducedMotion ? " reduce-motion" : "") +
-          ` stage-tier-${progress.level>=8?3:progress.level>=5?2:progress.level>=2?1:0}`
+          ` stage-tier-${progress.level >= 8 ? 3 : progress.level >= 5 ? 2 : progress.level >= 2 ? 1 : 0}`
         }
       >
         {QA_MODE && (
@@ -1297,7 +1335,7 @@ export default function App() {
                 <section
                   className={
                     "result-v2 " +
-                    (finished.miss === 0
+                    (finished.miss + finished.good + (finished.bad || 0) === 0
                       ? "full-combo"
                       : finished.accuracy >= 65
                         ? "cleared"
@@ -1319,9 +1357,11 @@ export default function App() {
                   <div className="result-heading">
                     <span className="eyebrow">{finished.title}</span>
                     <h1>
-                      {finished.miss === 0
-                        ? "FULL COMBO"
-                        : finished.accuracy >= 65
+                      {finished.miss + finished.good + (finished.bad || 0) === 0
+                        ? finished.great === 0
+                          ? "ALL PERFECT"
+                          : "FULL COMBO"
+                        : finished.cleared
                           ? "STAGE CLEAR"
                           : "SESSION FINISH"}
                     </h1>
@@ -1353,19 +1393,20 @@ export default function App() {
                       </div>
                     </div>
                     <div className="judgement-summary">
-                      {(["perfect", "great", "good", "miss"] as const).map(
-                        (g) => (
-                          <div key={g}>
-                            <small>{g.toUpperCase()}</small>
-                            <strong>{finished[g]}</strong>
-                          </div>
-                        ),
-                      )}
+                      {(
+                        ["perfect", "great", "good", "bad", "miss"] as const
+                      ).map((g) => (
+                        <div key={g}>
+                          <small>{g.toUpperCase()}</small>
+                          <strong>{finished[g] || 0}</strong>
+                        </div>
+                      ))}
                     </div>
                     <p className="timing-summary">
-                      EARLY {finished.early ?? 0} · LATE {finished.late ?? 0} ·
+                      FAST {finished.early ?? 0} · LATE {finished.late ?? 0} ·
                       平均 {(finished.meanOffset ?? 0) > 0 ? "+" : ""}
-                      {(finished.meanOffset ?? 0).toFixed(1)} ms
+                      {(finished.meanOffset ?? 0).toFixed(1)} ms · FLICK{" "}
+                      {finished.flickErrors || 0} · LIFE {finished.life ?? "—"}
                     </p>
                     {(finished.level ?? 0) > (finished.previousLevel ?? 0) && (
                       <div className="level-up">
@@ -1439,7 +1480,7 @@ export default function App() {
                         <em>MUSIC.</em>
                       </h1>
                       <div className="hero-meta">
-                        <span>3 PADS</span>
+                        <span>12 LANES</span>
                         <i />
                         LANDSCAPE
                       </div>
@@ -1659,7 +1700,7 @@ export default function App() {
                                   )}
                                   {s.analysis.version === 2 && (
                                     <small className="analysis-chip">
-                                      発音解析 v3
+                                      レーン譜面 v4
                                     </small>
                                   )}
                                 </div>
@@ -1829,7 +1870,7 @@ export default function App() {
                   <div className="notice">
                     <strong>プレイで20〜80 XP · 曲の追加で30 XP</strong>
                     <p>
-                      Lv.5で鬼、Lv.3/5/8でテーマが解放されます。3人以上のランキングで初の表彰台に25XP、初1位に60XP。曲追加XPは同一音源1回、1日5曲まで。
+                      Lv.5でEXPERT、Lv.8でMASTERとテーマが解放されます。3人以上のランキングで初の表彰台に25XP、初1位に60XP。曲追加XPは同一音源1回、1日5曲まで。
                     </p>
                   </div>
                   <h2>最近の記録</h2>
@@ -1856,7 +1897,7 @@ export default function App() {
                 <button onClick={() => setPanel("privacy")}>
                   プライバシー・音源について
                 </button>
-                <small>OFF MUSIC 3.0</small>
+                <small>OFF MUSIC 4.0</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
@@ -1987,7 +2028,7 @@ export default function App() {
                     />
                   </label>
                   <small className="muted">
-                    LATEが続く場合は＋、EARLYが続く場合は−へ。音符は音声の出力時計に同期します。
+                    LATEが続く場合は＋、FASTが続く場合は−へ。音符は音声の出力時計に同期します。
                   </small>
                   <label>
                     流れる速さ（BPM連動）
@@ -2183,7 +2224,7 @@ export default function App() {
               {panel === "upload" && (
                 <div className="upload-content">
                   <p>
-                    音の立ち上がりを約3ms刻みで検出し、音域に合わせて3種類の音符を作ります。
+                    音の立ち上がりを約3ms刻みで検出し、タップ・スライド・フリックの譜面を自動で作ります。
                   </p>
                   <input
                     ref={fileInput}
@@ -2330,7 +2371,7 @@ export default function App() {
                         <strong>{d.level}</strong>
                         <span>
                           {!QA_MODE && !difficultyUnlocked(progress.level, d.id)
-                            ? `Lv.${EXPERT_LEVEL}で解放`
+                            ? `Lv.${difficultyLevel(d.id)}で解放`
                             : selected
                               ? createChart(
                                   selected.analysis,
@@ -2339,7 +2380,9 @@ export default function App() {
                                   selected.bpmOverride,
                                 ).length
                               : 0}
-                          {(QA_MODE || difficultyUnlocked(progress.level,d.id)) && "音符"}
+                          {(QA_MODE ||
+                            difficultyUnlocked(progress.level, d.id)) &&
+                            "音符"}
                         </span>
                       </button>
                     ))}
@@ -2383,24 +2426,29 @@ export default function App() {
                     </div>
                   </details>
                   <div className="pad-legend">
-                    {HIT_KINDS.map((k) => (
-                      <span key={k} style={{ color: HIT_STYLE[k].color }}>
-                        {HIT_STYLE[k].symbol} {HIT_STYLE[k].label}
+                    {(
+                      Object.keys(NOTE_STYLE) as (keyof typeof NOTE_STYLE)[]
+                    ).map((k) => (
+                      <span key={k} style={{ color: NOTE_STYLE[k].color }}>
+                        {NOTE_STYLE[k].symbol} {NOTE_STYLE[k].label}
                       </span>
                     ))}
                   </div>
                   <div className="play-summary">
                     <span>
-                      {chart.length} NOTES · {settings.speed}×
+                      {chart.length} NOTES · {stagePoints(chart).length} COMBO ·{" "}
+                      {settings.speed}×
                     </span>
                     <span>
-                      {selected.arrangement ||
-                      selected.bpmOverride ||
-                      settings.speed !== 1
-                        ? "練習モード"
-                        : user && (selected.builtin || selected.groupId)
-                          ? "ランキングに反映"
-                          : "個人記録"}
+                      {QA_MODE
+                        ? "QA · 保存なし"
+                        : selected.arrangement ||
+                            selected.bpmOverride ||
+                            settings.speed !== 1
+                          ? "練習モード"
+                          : user && (selected.builtin || selected.groupId)
+                            ? "ランキングに反映"
+                            : "個人記録"}
                     </span>
                   </div>
                   <button
@@ -2414,7 +2462,10 @@ export default function App() {
                   <p className="landscape-hint">
                     {effectiveBpm(selected.bpm, settings.speed)} BPM ·
                     4拍の表示範囲{" "}
-                    {(travelSeconds(selected.bpm,settings.scrollSpeed)/settings.speed).toFixed(2)}
+                    {(
+                      travelSeconds(selected.bpm, settings.scrollSpeed) /
+                      settings.speed
+                    ).toFixed(2)}
                     秒 · 流速自動
                   </p>
                   {user && groups.length > 0 && (
@@ -2524,7 +2575,8 @@ export default function App() {
                     D1へ保存します。
                   </p>
                   <p>
-                    「みんなの曲」へ追加した音源はGoogleログインした全ユーザーへ公開します。グループ限定曲は参加者だけが再生できます。音源はCloudflare R2へ保存します。グループ内では表示名・レベル・スコアを共有します。招待リンクは信頼できる人だけに渡してください。
+                    「みんなの曲」へ追加した音源はGoogleログインした全ユーザーへ公開します。グループ限定曲は参加者だけが再生できます。音源はCloudflare
+                    R2へ保存します。グループ内では表示名・レベル・スコアを共有します。招待リンクは信頼できる人だけに渡してください。
                   </p>
                   <p>
                     ランキングは標準譜面・1倍速の打鍵記録をサーバーで再判定します。

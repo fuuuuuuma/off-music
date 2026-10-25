@@ -1,11 +1,50 @@
 import { z } from "zod";
-export const difficultySchema = z.enum(["easy", "normal", "hard", "expert"]);
-export const noteSchema = z.object({
-  id: z.number().int().min(0).max(5000),
-  time: z.number().min(0).max(600),
-  kind: z.enum(["pulse", "snap", "edge"]),
-  accent: z.boolean(),
-});
+export const difficultySchema = z.enum([
+  "easy",
+  "normal",
+  "hard",
+  "expert",
+  "master",
+]);
+export const noteSchema = z
+  .object({
+    id: z.number().int().min(0).max(3000),
+    time: z.number().min(0).max(600),
+    kind: z.enum(["pulse", "snap", "edge"]),
+    accent: z.boolean(),
+    type: z.enum(["tap", "hold", "flick"]),
+    lane: z.number().min(0).max(11),
+    width: z.number().min(1).max(12),
+    endTime: z.number().min(0).max(600).optional(),
+    tick: z.number().min(0.15).max(1).optional(),
+    path: z
+      .array(
+        z.object({
+          time: z.number().min(0).max(600),
+          lane: z.number().min(0).max(11),
+        }),
+      )
+      .min(2)
+      .max(8)
+      .optional(),
+    endFlick: z.boolean().optional(),
+    direction: z.union([z.literal(-1), z.literal(0), z.literal(1)]).optional(),
+  })
+  .refine(
+    (n) =>
+      n.lane + n.width <= 12 &&
+      (n.type !== "hold" ||
+        (!!n.endTime &&
+          n.endTime > n.time + 0.2 &&
+          !!n.path &&
+          n.path[0].time === n.time &&
+          n.path.at(-1)!.time === n.endTime &&
+          n.path.every(
+            (p, i) =>
+              p.lane + n.width <= 12 && (!i || p.time > n.path![i - 1].time),
+          ))),
+    "レーン譜面が正しくありません",
+  );
 const peakSchema = z.object({
   time: z.number().min(0).max(600),
   strength: z.number().min(0).max(1),
@@ -58,6 +97,7 @@ export const songSchema = z.object({
   rightsConfirmed: z.literal(true),
 });
 export const startSchema = z.object({
+  chartVersion: z.string().max(40).optional(),
   songId: z.string().min(1).max(100),
   title: z.string().min(1).max(140),
   duration: z.number().min(3).max(600),
@@ -73,12 +113,15 @@ export const replaySchema = z
       .array(
         z.tuple([
           z.number().int().min(-250).max(601000),
-          z.number().int().min(0).max(2),
+          z.number().int().min(0).max(2147483647),
+          z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3)]),
+          z.number().int().min(0).max(1200),
+          z.number().int().min(-500).max(1500),
         ]),
       )
-      .max(10000),
+      .max(30000),
   })
   .refine(
     (a) => a.hits.every((h, i) => !i || h[0] >= a.hits[i - 1][0]),
-    "打鍵の順序が正しくありません",
+    "入力の順序が正しくありません",
   );

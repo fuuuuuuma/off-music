@@ -37,7 +37,7 @@ app.use("/api/*", async (c, next) => {
       : path.match(/\/groups\/[^/]+\/songs$/)
         ? 786432
         : path.includes("/plays")
-          ? 180000
+          ? 1048576
           : 24576;
   return bodyLimit({
     maxSize,
@@ -72,14 +72,14 @@ app.get("/api/config", (c) =>
   c.json({
     googleClientId: c.env.GOOGLE_CLIENT_ID || null,
     ai: !!c.env.AI,
-    version: "3.0.0",
+    version: "4.0.0",
   }),
 );
 app.get("/api/health", async (c) => {
   await c.env.DB.prepare("SELECT 1").first();
   return c.json({
     ok: true,
-    version: "3.0.0",
+    version: "4.0.0",
     google: !!c.env.GOOGLE_CLIENT_ID,
     ai: !!c.env.AI,
   });

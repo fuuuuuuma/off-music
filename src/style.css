@@ -3620,4 +3620,524 @@ body {
   font-size: 9px;
   min-height: 34px;
 }
-.stage-tier-3 .combo-milestone{background:linear-gradient(120deg,#ffe8c8c0,#dfcbffc0,#d5fff0c0);border:1px solid #fff;border-radius:20px;padding:8px 18px;box-shadow:0 0 28px #c5a0f240}.stage-tier-3 .game-aura{filter:saturate(1.3)}
+.stage-tier-3 .combo-milestone {
+  background: linear-gradient(120deg, #ffe8c8c0, #dfcbffc0, #d5fff0c0);
+  border: 1px solid #fff;
+  border-radius: 20px;
+  padding: 8px 18px;
+  box-shadow: 0 0 28px #c5a0f240;
+}
+.stage-tier-3 .game-aura {
+  filter: saturate(1.3);
+}
+
+/* v4: perspective stage. The touch surface owns the complete lower highway. */
+.game-v2.stage-v4 {
+  padding: max(7px, env(safe-area-inset-top))
+    max(12px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom))
+    max(12px, env(safe-area-inset-left));
+  grid-template-rows: 52px minmax(0, 1fr) 29px;
+  gap: 0;
+  overflow: clip;
+  background: radial-gradient(
+    ellipse at 45% 65%,
+    #fff 0,
+    #f1f2fa 47%,
+    #e9f3f2 100%
+  );
+}
+.stage-backdrop {
+  position: absolute;
+  inset: 0;
+  background: url("/art/play-pay.png") center/cover;
+  filter: blur(5px) saturate(0.5);
+  opacity: 0.09;
+  z-index: -2;
+  pointer-events: none;
+}
+.stage-v4 .game-aura {
+  inset: 0;
+  pointer-events: none;
+  opacity: calc(0.12 + var(--heat) * 0.5);
+}
+.stage-hud {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 8px 6px;
+  min-width: 0;
+  position: relative;
+  z-index: 5;
+}
+.stage-score {
+  width: 185px;
+  display: grid;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.stage-score > small {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: #817d98;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.stage-score > small span {
+  font-size: 11px;
+  background: #aba4c8;
+  color: white;
+  width: 18px;
+  height: 16px;
+  text-align: center;
+  line-height: 16px;
+  border-radius: 5px;
+}
+.stage-score > strong {
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: -1px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.stage-score > i {
+  height: 3px;
+  background: #dcd8e6;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.stage-score > i > b {
+  height: 100%;
+  display: block;
+  background: linear-gradient(90deg, #6ccbc9, #a786db, #e3b06c);
+}
+.stage-song {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+.stage-song > strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stage-song > small {
+  font-size: 8px;
+  color: #868098;
+  white-space: nowrap;
+}
+.stage-life {
+  width: 145px;
+  display: grid;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.stage-life > small {
+  font-size: 9px;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #438e7b;
+}
+.stage-life > small > b {
+  margin-left: auto;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.stage-life > i {
+  height: 8px;
+  background: #d1e0db;
+  border-radius: 8px;
+  padding: 2px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px #fff;
+}
+.stage-life > i > b {
+  display: block;
+  height: 100%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #6bb9a6, #67d7a9);
+  transition: width 0.1s;
+}
+.stage-life[data-low="true"] > i > b {
+  background: #ec799c;
+}
+.stage-hud > .icon-button {
+  background: #ffffffb5;
+  box-shadow: 0 3px 12px #7f739512;
+  border: 1px solid white;
+  border-radius: 12px;
+  width: 38px;
+  height: 38px;
+}
+.stage-field {
+  position: relative;
+  min-height: 0;
+  touch-action: none;
+  overflow: clip;
+  isolation: isolate;
+}
+.stage-field > canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+.stage-cast {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+.stage-cast .mascots {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+}
+.stage-cast .mascot-dancer {
+  position: absolute;
+  left: -1%;
+  top: 22%;
+  width: 13%;
+  height: 50%;
+  max-width: 120px;
+  margin: 0;
+  opacity: 0.83;
+  filter: drop-shadow(0 6px 5px #7775911a);
+}
+.stage-cast .mascot-dancer:nth-child(2) {
+  left: auto;
+  right: -1%;
+  top: 20%;
+  height: 43%;
+  width: 11%;
+}
+.stage-cast .mascot-dancer:nth-child(3) {
+  left: 1%;
+  top: 70%;
+  width: 6%;
+  height: 25%;
+  opacity: 0.35;
+}
+.stage-cast .mascot-dancer:nth-child(4) {
+  left: auto;
+  right: 1%;
+  top: 71%;
+  width: 6%;
+  height: 25%;
+  opacity: 0.35;
+}
+.stage-cast .mascot {
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+.stage-combo {
+  position: absolute;
+  right: 6%;
+  top: 17%;
+  width: 14%;
+  display: grid;
+  text-align: center;
+  gap: 1px;
+  pointer-events: none;
+  z-index: 2;
+  color: #8e80aa;
+}
+.stage-combo > small {
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 800;
+}
+.stage-combo > strong {
+  font-size: clamp(34px, 6vw, 72px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -2px;
+  text-shadow: 0 2px white;
+}
+.stage-combo > span {
+  font-size: 6px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  height: 10px;
+  white-space: nowrap;
+}
+.stage-combo.all-perfect > strong {
+  background: linear-gradient(100deg, #e9a451, #bd76c9, #4dbfb9);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+.stage-combo.full-combo > strong {
+  color: #d6a051;
+}
+.stage-judgement {
+  position: absolute;
+  top: 60%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  text-align: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 3;
+  white-space: nowrap;
+}
+.stage-judgement > strong {
+  font-size: clamp(20px, 3.8vw, 40px);
+  font-weight: 800;
+  font-style: italic;
+  letter-spacing: 1px;
+  line-height: 1;
+  color: #a69cb9;
+  text-shadow:
+    0 2px white,
+    0 0 18px #ffffff;
+}
+.stage-judgement > span {
+  font-size: 8px;
+  letter-spacing: 1px;
+  font-weight: 700;
+  color: #8f809f;
+}
+.stage-judgement[data-grade="perfect"] > strong {
+  background: linear-gradient(90deg, #d8a74b, #d394cd, #6cbdc4);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 1px white);
+}
+.stage-judgement[data-grade="great"] > strong {
+  color: #b47bd1;
+}
+.stage-judgement[data-grade="good"] > strong {
+  color: #60a9bc;
+}
+.stage-judgement[data-grade="bad"] > strong {
+  color: #d48d9b;
+}
+.stage-judgement[data-grade="miss"] > strong {
+  color: #9790a8;
+}
+.stage-touch-keys {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  top: 80%;
+  bottom: 0;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  z-index: 4;
+}
+.stage-touch-keys > button {
+  border: 0;
+  border-left: 1px solid #ffffff70;
+  background: linear-gradient(#ffffff05, #b7c8dd15);
+  border-radius: 0;
+  min-width: 0;
+  outline-offset: -3px;
+  padding: 0 0 4px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: none;
+}
+.stage-touch-keys > button:last-child {
+  border-right: 1px solid #ffffff70;
+}
+.stage-touch-keys > button:active {
+  background: linear-gradient(#ffffff22, #92cddd66);
+}
+.stage-touch-keys > button > span {
+  font-size: 9px;
+  font-weight: 800;
+  color: #9c94af;
+  opacity: 0.65;
+}
+.stage-countdown {
+  position: absolute;
+  inset: 15% 30% 20%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 88px;
+  line-height: 1;
+  font-weight: 800;
+  color: #9a87bf;
+  text-shadow: 0 4px white;
+  pointer-events: none;
+  z-index: 6;
+  animation: countdown-pop 1s ease-out;
+}
+.stage-countdown > small {
+  font-size: 9px;
+  letter-spacing: 4px;
+  margin-top: 10px;
+}
+.stage-milestone {
+  position: absolute;
+  top: 35%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #c5a164;
+  pointer-events: none;
+  z-index: 3;
+  animation: milestone 850ms ease-out both;
+  white-space: nowrap;
+}
+.stage-footer {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: 10px 12px;
+  align-items: center;
+  gap: 1px 12px;
+  font-size: 7px;
+  font-weight: 700;
+  color: #a29aaf;
+  padding: 3px 8px 0;
+}
+.stage-footer > span {
+  letter-spacing: 1px;
+}
+.stage-footer > span > b {
+  font-size: 6px;
+  letter-spacing: 0.5px;
+  margin-left: 10px;
+  color: #aaa4b2;
+}
+.stage-footer > i {
+  height: 2px;
+  background: #dcd7e4;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.stage-footer > i > b {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #81c6c4, #b99fd9);
+}
+.stage-footer > time {
+  font-variant-numeric: tabular-nums;
+}
+.stage-footer > small {
+  grid-column: 1/-1;
+  justify-self: center;
+  font-size: 6px;
+  font-weight: 500;
+  letter-spacing: 0.7px;
+  color: #a8a1b0;
+}
+.difficulty-options {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.judgement-summary {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+@media (max-height: 400px) and (orientation: landscape) {
+  .game-v2.stage-v4 {
+    grid-template-rows: 45px minmax(0, 1fr) 26px;
+    padding-top: 6px;
+  }
+  .stage-hud {
+    gap: 18px;
+  }
+  .stage-score {
+    width: 150px;
+  }
+  .stage-score > strong {
+    font-size: 24px;
+  }
+  .stage-song > strong {
+    font-size: 11px;
+  }
+  .stage-song > small {
+    font-size: 7px;
+  }
+  .stage-life {
+    width: 120px;
+  }
+  .stage-hud > .icon-button {
+    height: 32px;
+    width: 32px;
+  }
+  .stage-combo {
+    top: 17%;
+  }
+  .stage-combo > strong {
+    font-size: 40px;
+  }
+  .stage-combo > small {
+    font-size: 8px;
+  }
+  .stage-judgement > strong {
+    font-size: 25px;
+  }
+}
+@media (max-width: 600px) {
+  .stage-score {
+    width: 112px;
+  }
+  .stage-score > strong {
+    font-size: 21px;
+  }
+  .stage-hud {
+    gap: 10px;
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+  .stage-life {
+    width: 80px;
+  }
+  .stage-song > strong {
+    font-size: 10px;
+  }
+  .stage-song > small {
+    font-size: 6px;
+  }
+  .stage-combo > strong {
+    font-size: 32px;
+  }
+  .stage-combo > span {
+    font-size: 4px;
+  }
+  .difficulty-options > button > small {
+    font-size: 7px;
+    letter-spacing: 0;
+  }
+}
+@media (pointer: coarse) {
+  .stage-touch-keys > button > span {
+    opacity: 0.3;
+  }
+}
+.game-v2.stage-v4.theme-sunset {
+  background: radial-gradient(ellipse at 45% 65%, #fff, #faeee7 50%, #f2e4e9);
+}
+.game-v2.stage-v4.theme-neon {
+  background: radial-gradient(ellipse at 45% 65%, #fff, #eee8fc 50%, #e3eef9);
+}
+.game-v2.stage-v4.theme-aurora {
+  background:
+    radial-gradient(ellipse at 25% 35%, #e7f7f0, transparent 65%),
+    linear-gradient(125deg, #f6edf9, #f0f1ff, #e8f8f4);
+}

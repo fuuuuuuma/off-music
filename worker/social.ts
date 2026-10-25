@@ -7,15 +7,22 @@ import {
   startSchema,
   replaySchema,
 } from "./social-schema.ts";
-import { CHART_VERSION, createChart, replayChart } from "../src/lib/chart.ts";
+import { CHART_VERSION, createChart } from "../src/lib/stage-chart.ts";
+import { replayStage as replayChart } from "../src/lib/stage-session.ts";
 import { COMMUNITY_ID } from "../src/lib/community.ts";
 import { joinCommunity } from "./community.ts";
 import {
   progression,
   playXp,
   difficultyUnlocked,
+  difficultyLevel,
 } from "../src/lib/progression.ts";
-import type { Analysis, Note, Result, Difficulty } from "../src/types.ts";
+import type {
+  Analysis,
+  StageNote as Note,
+  Result,
+  Difficulty,
+} from "../src/types.ts";
 import playPay from "../public/music/play-pay.json";
 import glassCircuit from "../public/music/glass-circuit.json";
 const router = new Hono<ContextType>();
@@ -394,18 +401,21 @@ router.get("/groups/:id/rankings", async (c) => {
     return c.json({ error: "グループに参加してください" }, 403);
   const song = c.req.query("song"),
     difficulty = c.req.query("difficulty") || "normal";
-  if (song && !["easy", "normal", "hard", "expert"].includes(difficulty))
+  if (
+    song &&
+    !["easy", "normal", "hard", "expert", "master"].includes(difficulty)
+  )
     return c.json({ error: "難易度を確認してください" }, 400);
   const rows = song
     ? await c.env.DB.prepare(
-        "SELECT m.id AS memberId,m.display_name AS name,l.score,l.accuracy,l.max_combo AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM leaderboard_v3 l JOIN members m ON m.group_id=l.group_id AND m.user_id=l.user_id LEFT JOIN progress p ON p.user_id=m.user_id WHERE l.chart_version='rhythm-v3.1' AND l.group_id=? AND l.song_id=? AND l.difficulty=? ORDER BY l.score DESC,l.max_combo DESC,l.updated_at ASC LIMIT 50",
+        "SELECT m.id AS memberId,m.display_name AS name,l.score,l.accuracy,l.max_combo AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM leaderboard_v3 l JOIN members m ON m.group_id=l.group_id AND m.user_id=l.user_id LEFT JOIN progress p ON p.user_id=m.user_id WHERE l.chart_version=? AND l.group_id=? AND l.song_id=? AND l.difficulty=? ORDER BY l.score DESC,l.max_combo DESC,l.updated_at ASC LIMIT 50",
       )
-        .bind(groupId, song, difficulty)
+        .bind(CHART_VERSION, groupId, song, difficulty)
         .all<any>()
     : await c.env.DB.prepare(
-        "SELECT m.id AS memberId,m.display_name AS name,COALESCE(SUM(l.score*CASE l.difficulty WHEN 'easy' THEN .6 WHEN 'hard' THEN 1.3 WHEN 'expert' THEN 1.6 ELSE 1 END),0) AS score,COALESCE(AVG(l.accuracy),0) AS accuracy,COALESCE(MAX(l.max_combo),0) AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM members m LEFT JOIN leaderboard_v3 l ON l.group_id=m.group_id AND l.user_id=m.user_id AND l.chart_version='rhythm-v3.1' LEFT JOIN progress p ON p.user_id=m.user_id WHERE m.group_id=? GROUP BY m.user_id ORDER BY score DESC,xp DESC,m.joined_at ASC LIMIT 50",
+        "SELECT m.id AS memberId,m.display_name AS name,COALESCE(SUM(l.score*CASE l.difficulty WHEN 'easy' THEN .6 WHEN 'hard' THEN 1.3 WHEN 'expert' THEN 1.6 WHEN 'master' THEN 1.8 ELSE 1 END),0) AS score,COALESCE(AVG(l.accuracy),0) AS accuracy,COALESCE(MAX(l.max_combo),0) AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM members m LEFT JOIN leaderboard_v3 l ON l.group_id=m.group_id AND l.user_id=m.user_id AND l.chart_version=? LEFT JOIN progress p ON p.user_id=m.user_id WHERE m.group_id=? GROUP BY m.user_id ORDER BY score DESC,xp DESC,m.joined_at ASC LIMIT 50",
       )
-        .bind(groupId)
+        .bind(CHART_VERSION, groupId)
         .all<any>();
   return c.json({
     rows: rows.results.map((r, i) => ({
@@ -425,9 +435,19 @@ router.get("/groups/:id/rankings", async (c) => {
 router.post("/plays", async (c) => {
   const d = startSchema.parse(await c.req.json()),
     group = d.groupId || null;
+  if (d.chartVersion !== CHART_VERSION)
+    return c.json(
+      { error: "ゲームを更新しました。画面を再読み込みしてください" },
+      409,
+    );
   if (group === COMMUNITY_ID) await joinCommunity(c.env.DB, c.get("user").id);
   if (!difficultyUnlocked((await progress(c)).level, d.difficulty))
-    return c.json({ error: "鬼はLv.5で解放されます" }, 403);
+    return c.json(
+      {
+        error: `${d.difficulty.toUpperCase()}はLv.${difficultyLevel(d.difficulty)}で解放されます`,
+      },
+      403,
+    );
   if (group && !(await member(c, group)))
     return c.json({ error: "グループに参加してください" }, 403);
   let canonical = builtins[d.songId];
@@ -448,7 +468,7 @@ router.post("/plays", async (c) => {
   if (!notes?.length) return c.json({ error: "譜面がありません" }, 400);
   if (
     !notes.every(
-      (n, i) => n.time < d.duration && (!i || n.time > notes[i - 1].time),
+      (n, i) => n.time < d.duration && (!i || n.time >= notes[i - 1].time),
     )
   )
     return c.json({ error: "譜面を確認してください" }, 400);
@@ -497,6 +517,11 @@ router.post("/plays/:ticket/finish", async (c) => {
       result: JSON.parse(p.result),
       progress: await progress(c),
     });
+  if (p.chart_version !== CHART_VERSION)
+    return c.json(
+      { error: "譜面が更新されました。画面を再読み込みして演奏してください" },
+      409,
+    );
   if (p.group_id && !(await member(c, p.group_id)))
     return c.json({ error: "グループに参加してください" }, 403);
   const elapsed = (Date.now() - p.started_at) / 1000;
@@ -509,7 +534,7 @@ router.post("/plays/:ticket/finish", async (c) => {
     return c.json({ error: "打鍵時刻を確認してください" }, 400);
   const s = replayChart(JSON.parse(p.notes) as Note[], d.hits, p.speed),
     before = await progress(c),
-    xp = playXp(s.score, s.miss);
+    xp = playXp(s.score, s.miss + s.good + s.bad);
   const result: Result = {
     id: p.id,
     songId: p.song_id,
@@ -521,6 +546,10 @@ router.post("/plays/:ticket/finish", async (c) => {
     perfect: s.perfect,
     great: s.great,
     good: s.good,
+    bad: s.bad,
+    life: s.life,
+    cleared: s.cleared,
+    flickErrors: s.flickErrors,
     miss: s.miss,
     total: s.total,
     early: s.early,
