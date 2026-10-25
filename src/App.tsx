@@ -395,10 +395,12 @@ export default function App() {
       } else {
         setUser(null);
       }
+      return true;
     } catch {
       setBootError(
         "ライブラリを読み込めませんでした。接続を確認して再試行してください",
       );
+      return false;
     } finally {
       setBooting(false);
     }
@@ -425,8 +427,10 @@ export default function App() {
     refreshLock.current = true;
     setRefreshing(true);
     try {
-      await load();
-      if (navigator.onLine) notify("ライブラリを更新しました");
+      const loaded = await load();
+      if (!loaded)
+        notify("更新できませんでした。前のライブラリを表示しています");
+      else if (navigator.onLine) notify("ライブラリを更新しました");
       else notify("オフラインの記録を表示しています");
     } finally {
       setPull(0);

@@ -1,0 +1,27 @@
+- banner:
+  - button "ライブラリに戻る":
+  - generic: "OFF"
+  - generic: MUSIC
+  - button "記録を出力":
+- text: SESSION COMPLETE
+- text: D
+- generic: ✦
+- heading "MAKE SOMETHING." [level=1]
+- paragraph: ふつう · 1.25×
+- text: SCORE
+- strong: 4,720
+- text: 精度
+- generic: 0.47%
+- generic: 最大コンボ 2
+- generic: PERFECT
+- strong: "1"
+- generic: GREAT
+- strong: "0"
+- generic: GOOD
+- strong: "1"
+- generic: MISS
+- strong: "284"
+- button "もう一度プレイ":
+  - text: もう一度プレイ
+- button "ライブラリに戻る":
+  - text: ライブラリに戻る
