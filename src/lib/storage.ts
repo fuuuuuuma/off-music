@@ -1,5 +1,5 @@
 import { openDB } from "idb";
-import type { Result, Settings, Song } from "../types.ts";
+import type { Result, Settings, Song, Progress } from "../types.ts";
 const db = openDB("off-music", 1, {
   upgrade(db) {
     db.createObjectStore("songs", { keyPath: "id" });
@@ -8,6 +8,14 @@ const db = openDB("off-music", 1, {
   },
 });
 export const store = {
+  guestUploads: async (): Promise<string[]> =>
+    (await db).get("settings", "guest-uploads").then((v) => v || []),
+  saveGuestUploads: async (hashes: string[]) =>
+    (await db).put("settings", hashes, "guest-uploads"),
+  guestProgress: async (): Promise<Progress | undefined> =>
+    (await db).get("settings", "guest-progress"),
+  saveGuestProgress: async (p: Progress) =>
+    (await db).put("settings", p, "guest-progress"),
   songs: async (): Promise<Song[]> => (await db).getAll("songs"),
   saveSong: async (song: Song) => (await db).put("songs", song),
   deleteSong: async (id: string) => (await db).delete("songs", id),

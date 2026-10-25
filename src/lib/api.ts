@@ -16,7 +16,9 @@ export async function api<T>(
             "X-Off-Music": "1",
             ...(expectedUser ? { "X-Off-User": expectedUser } : {}),
           }
-        : undefined,
+        : expectedUser
+          ? { "X-Off-User": expectedUser }
+          : undefined,
     body: data !== undefined ? JSON.stringify(data) : undefined,
     credentials: "same-origin",
     signal: AbortSignal.timeout(path === "/me/arrange" ? 35000 : 15000),
@@ -28,8 +30,8 @@ export async function api<T>(
   };
   if (!res.ok) {
     if (
-      data !== undefined &&
       path.startsWith("/me/") &&
+      path !== "/me/profile" &&
       (res.status === 401 || res.status === 409)
     )
       window.dispatchEvent(new Event("off-auth-change"));

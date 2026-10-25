@@ -4,7 +4,7 @@ import { analyzePCM } from "./analysis.ts";
 import { calculateScore, createChart, judge, timingDelta } from "./chart.ts";
 import type { Analysis, Difficulty } from "../types.ts";
 const builtin = JSON.parse(
-  readFileSync("public/music/make-something.json", "utf8"),
+  readFileSync("public/music/play-pay.json", "utf8"),
 ) as Analysis;
 describe("判定と集計", () => {
   it.each([
@@ -43,7 +43,7 @@ describe("実際の初期曲の譜面", () => {
       expect(
         notes.every(
           (n, i) =>
-            n.time >= 1 &&
+            n.time >= .7 &&
             n.time < builtin.duration &&
             (!i || n.time > notes[i - 1].time),
         ),

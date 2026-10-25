@@ -4,139 +4,117 @@ import {
   useMemo,
   useRef,
   useState,
-  type TouchEvent,
+  type CSSProperties,
 } from "react";
-import { AnimatePresence, motion, MotionConfig } from "motion/react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import {
-  Activity,
-  ArrowDown,
   ArrowLeft,
   ArrowRight,
   AudioLines,
   Check,
-  CheckCircle2,
-  ChevronDown,
   ChevronRight,
-  Clock3,
   Cloud,
   Disc3,
   Download,
-  FileAudio,
   Headphones,
-  Info,
-  Library,
   LoaderCircle,
   LogOut,
-  MoreHorizontal,
   Music2,
   Play,
   Plus,
   RefreshCw,
   Search,
   Settings2,
-  ShieldCheck,
+  Share2,
   SlidersHorizontal,
   Sparkles,
   Trash2,
   Trophy,
   Upload,
+  Users,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { Sheet } from "./components/Sheet.tsx";
 import { Game } from "./components/Game.tsx";
+import { Mascot, Mascots } from "./components/Mascots.tsx";
+import { Calibration } from "./components/Calibration.tsx";
+import { GoogleButton } from "./components/GoogleButton.tsx";
+import { Community } from "./components/Community.tsx";
 import {
   analyzeAudio,
   decodeAudio,
-  playHit,
+  chime,
+  setAmbience,
+  stopAmbience,
   unlockAudio,
 } from "./lib/audio.ts";
-import { createChart } from "./lib/chart.ts";
-import { store } from "./lib/storage.ts";
+import { CHART_VERSION, createChart } from "./lib/chart.ts";
 import { api, setApiUser } from "./lib/api.ts";
+import { store } from "./lib/storage.ts";
+import { THEMES, progression, playXp } from "./lib/progression.ts";
 import {
   DEFAULT_SETTINGS,
   DIFFICULTIES,
+  HIT_KINDS,
+  HIT_STYLE,
   type Analysis,
-  type Arrangement,
   type Difficulty,
+  type Group,
+  type Note,
+  type Progress,
+  type RankingRow,
   type Result,
   type Settings,
   type Song,
   type User,
 } from "./types.ts";
-declare global {
-  interface Window {
-    google?: {
-      accounts: {
-        id: {
-          initialize: (config: Record<string, unknown>) => void;
-          renderButton: (
-            element: HTMLElement,
-            options: Record<string, unknown>,
-          ) => void;
-          disableAutoSelect: () => void;
-        };
-      };
-    };
-  }
-}
-type Toast = { text: string; action?: () => void; actionLabel?: string };
-const formatTime = (time: number) =>
-  `${Math.floor(time / 60)}:${String(Math.floor(time % 60)).padStart(2, "0")}`;
-const rank = (accuracy: number) =>
-  accuracy >= 98
+const time = (s: number) =>
+  `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const rank = (a: number) =>
+  a >= 98
     ? "S+"
-    : accuracy >= 93
+    : a >= 93
       ? "S"
-      : accuracy >= 83
+      : a >= 83
         ? "A"
-        : accuracy >= 68
+        : a >= 68
           ? "B"
-          : accuracy >= 45
+          : a >= 45
             ? "C"
             : "D";
-function Logo({ large = false }: { large?: boolean }) {
+type Panel =
+  | "settings"
+  | "calibrate"
+  | "account"
+  | "upload"
+  | "song"
+  | "login"
+  | "privacy"
+  | null;
+type GameData = {
+  settings: Settings;
+  difficulty: Difficulty;
+  song: Song;
+  buffer: AudioBuffer;
+  notes: Note[];
+  ticket?: string;
+  ranked: boolean;
+  groupId?: string;
+};
+type ToastData = { text: string; undo?: () => void };
+function Logo() {
   return (
-    <span className={"wordmark " + (large ? "wordmark-large" : "")}>
-      <span>OFF</span>
-      <span className="logo-symbol">
-        <i />
-        <b />
-      </span>
-      <span>MUSIC</span>
+    <span className="logo">
+      OFF<span className="logo-orbit">◌</span>MUSIC
     </span>
   );
 }
-function Sculpture({ small = false }: { small?: boolean }) {
+function Wave({ analysis }: { analysis: Analysis }) {
   return (
-    <div className={"sculpture " + (small ? "small" : "")} aria-hidden="true">
-      <div className="sculpture-shadow" />
-      <div className="orbit orbit-back" />
-      <div className="glass-disc">
-        <div className="disc-inset" />
-        <div className="disc-shine" />
-      </div>
-      <div className="violet-orb" />
-      <div className="orbit orbit-front" />
-      <div className="glass-pearl" />
-      <div className="spark spark-one">✦</div>
-      <div className="spark spark-two">✧</div>
-    </div>
-  );
-}
-function Waveform({
-  waveform,
-  light = false,
-}: {
-  waveform: number[];
-  light?: boolean;
-}) {
-  return (
-    <div
-      className={"waveform " + (light ? "wave-light" : "")}
-      aria-hidden="true"
-    >
-      {waveform
+    <div className="wave" aria-hidden="true">
+      {analysis.waveform
         .filter((_, i) => i % 2 === 0)
         .map((h, i) => (
           <i key={i} style={{ height: Math.max(8, h * 100) + "%" }} />
@@ -148,1878 +126,1944 @@ function Skeleton() {
   return (
     <div className="skeleton-screen" role="status" aria-label="読み込み中">
       <header>
-        <div className="sk sk-logo" />
-        <div className="sk sk-circle" />
+        <i />
+        <b />
       </header>
       <main>
-        <div className="sk sk-title" />
-        <div className="sk sk-hero" />
-        <div className="sk sk-search" />
-        {[0, 1, 2].map((i) => (
-          <div className="sk sk-row" key={i} />
+        <div className="sk-hero" />
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="sk-row" />
         ))}
       </main>
-      <span className="sr-only">ライブラリを読み込んでいます</span>
+      <span>OFF MUSIC</span>
     </div>
   );
 }
-function SongRow({
-  song,
-  best,
-  onSelect,
-  onDelete,
+function Intro({
+  onStart,
+  reduced,
 }: {
-  song: Song;
-  best?: Result;
-  onSelect: () => void;
-  onDelete: () => void;
+  onStart: () => void;
+  reduced: boolean;
 }) {
-  const [revealed, setRevealed] = useState(false),
-    start = useRef<{ x: number; y: number } | null>(null),
-    moved = useRef(false);
   return (
-    <div className="song-swipe">
-      {!song.builtin && (
-        <button
-          className="swipe-delete"
-          aria-hidden={!revealed}
-          tabIndex={revealed ? 0 : -1}
-          onClick={onDelete}
-          aria-label={song.title + "を削除"}
-        >
-          <Trash2 size={20} />
-          <span>削除</span>
-        </button>
-      )}
-      <motion.div
-        className="song-row glass"
-        animate={{ x: revealed ? -78 : 0 }}
-        transition={{ type: "spring", stiffness: 400, damping: 35 }}
-        onPointerDown={(e) => {
-          if (e.pointerType === "mouse") {
-            start.current = { x: e.clientX, y: e.clientY };
-            moved.current = false;
-          }
-        }}
-        onPointerMove={(e) => {
-          if (
-            e.pointerType === "mouse" &&
-            start.current &&
-            !song.builtin &&
-            Math.abs(e.clientX - start.current.x) > 12
-          ) {
-            moved.current = true;
-            e.currentTarget.setPointerCapture(e.pointerId);
-          }
-        }}
-        onPointerUp={(e) => {
-          if (e.pointerType !== "mouse" || !start.current) return;
-          const dx = e.clientX - start.current.x,
-            dy = e.clientY - start.current.y;
-          if (
-            !song.builtin &&
-            Math.abs(dx) > 35 &&
-            Math.abs(dx) > Math.abs(dy)
-          ) {
-            moved.current = true;
-            setRevealed(dx < 0);
-          }
-          start.current = null;
-        }}
-        onTouchStart={(e) => {
-          start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-          moved.current = false;
-        }}
-        onTouchEnd={(e) => {
-          if (!start.current || song.builtin) return;
-          const dx = e.changedTouches[0].clientX - start.current.x,
-            dy = e.changedTouches[0].clientY - start.current.y;
-          if (Math.abs(dx) > 35 && Math.abs(dx) > Math.abs(dy)) {
-            moved.current = true;
-            setRevealed(dx < 0);
-          }
-          start.current = null;
-        }}
-      >
-        <button
-          className="song-main"
-          onClick={() => {
-            if (moved.current) {
-              moved.current = false;
-              return;
-            }
-            onSelect();
-          }}
-        >
-          <div className={"track-art " + (song.builtin ? "featured-art" : "")}>
-            <Disc3 size={29} strokeWidth={1.4} />
-          </div>
-          <div className="song-meta">
-            <strong>{song.title}</strong>
-            <span>
-              {song.artist} <i>·</i> {formatTime(song.duration)}
-            </span>
-          </div>
-          <span className="song-bpm">
-            {song.bpm}
-            <small>BPM</small>
-          </span>
-          {best && <span className="mini-rank">{rank(best.accuracy)}</span>}
-          <ChevronRight size={18} />
-        </button>
-        {!song.builtin && (
-          <button
-            className="song-more"
-            aria-label={song.title + "の操作"}
-            onClick={() => setRevealed(!revealed)}
-          >
-            <MoreHorizontal size={19} />
-          </button>
-        )}
-      </motion.div>
-    </div>
+    <motion.div
+      className={"intro-v2 " + (reduced ? "still" : "")}
+      initial={{ opacity: 1 }}
+      exit={{ opacity: 0, scale: 1.1, filter: "blur(15px)" }}
+      transition={{ duration: 0.7 }}
+    >
+      <div className="intro-rays" />
+      <div className="intro-orbit orbit-one" />
+      <div className="intro-orbit orbit-two" />
+      <div className="intro-orbit orbit-three" />
+      {Array.from({ length: 18 }, (_, i) => (
+        <i className="intro-star" key={i} style={{ "--i": i } as CSSProperties}>
+          ✦
+        </i>
+      ))}
+      <div className="intro-mark">
+        <span className="intro-kicker">OFFSCREEN PRESENTS</span>
+        <h1>
+          <span>OFF</span>
+          <span>MUSIC</span>
+        </h1>
+        <div className="intro-mascot">
+          <Mascot index={1} />
+        </div>
+        <span className="intro-line" />
+      </div>
+      <button className="intro-start glass" onClick={onStart}>
+        タップしてスタート <ArrowRight size={18} />
+      </button>
+      <small className="intro-sound">
+        <Volume2 size={13} />
+        タップ後にサウンドが流れます
+      </small>
+    </motion.div>
   );
 }
 export default function App() {
-  const [songs, setSongs] = useState<Song[]>([]),
+  const [loading, setLoading] = useState(true),
+    [initialError, setInitialError] = useState(""),
+    [entered, setEntered] = useState(false),
+    [songs, setSongs] = useState<Song[]>([]),
+    [groupSongs, setGroupSongs] = useState<Song[]>([]),
     [results, setResults] = useState<Result[]>([]),
-    [cloudResults, setCloudResults] = useState<Result[]>([]),
     [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS),
-    [user, setUser] = useState<User | null>(null);
-  const [booting, setBooting] = useState(true),
-    [intro, setIntro] = useState(true),
-    [bootError, setBootError] = useState(""),
-    [error, setError] = useState(""),
-    [toast, setToast] = useState<Toast | null>(null),
-    [busy, setBusy] = useState("");
-  const [page, setPage] = useState<"library" | "records">("library"),
-    [sheet, setSheet] = useState<
-      "upload" | "settings" | "account" | "about" | null
-    >(null),
-    [selected, setSelected] = useState<string | null>(null),
-    [difficulty, setDifficulty] = useState<Difficulty>("normal");
-  const [search, setSearch] = useState(""),
+    [user, setUser] = useState<User | null>(null),
+    [clientId, setClientId] = useState(""),
+    [progress, setProgress] = useState<Progress>(progression()),
+    [groups, setGroups] = useState<Group[]>([]),
+    [groupId, setGroupId] = useState(localStorage.getItem("off-group") || ""),
+    [tab, setTab] = useState<"library" | "ranking" | "profile">("library"),
+    [panel, setPanel] = useState<Panel>(null),
+    [selected, setSelected] = useState<Song | null>(null),
+    [difficulty, setDifficulty] = useState<Difficulty>("normal"),
+    [game, setGame] = useState<GameData | null>(null),
+    [finished, setFinished] = useState<Result | null>(null),
+    [toast, setToast] = useState<ToastData | null>(null),
+    [busy, setBusy] = useState(false),
+    [busyText, setBusyText] = useState(""),
+    [query, setQuery] = useState(""),
     [searchFocus, setSearchFocus] = useState(false),
-    [suggestionIndex, setSuggestionIndex] = useState(-1),
-    [filter, setFilter] = useState("all");
-  const [file, setFile] = useState<File | null>(null),
-    [title, setTitle] = useState(""),
-    [artist, setArtist] = useState(""),
-    [progress, setProgress] = useState<number | null>(null),
-    [aiStyle, setAiStyle] = useState("balanced"),
-    [aiBusy, setAiBusy] = useState(false),
-    [bpmDraft, setBpmDraft] = useState("");
-  const [game, setGame] = useState<{
-      song: Song;
-      buffer: AudioBuffer;
-      difficulty: Difficulty;
-    } | null>(null),
-    [result, setResult] = useState<Result | null>(null),
-    [refreshing, setRefreshing] = useState(false),
+    [suggestionIndex, setSuggestionIndex] = useState(0),
+    [revision, setRevision] = useState(0),
+    [songRevision, setSongRevision] = useState(0),
+    [live, setLive] = useState("connecting"),
     [pull, setPull] = useState(0),
-    [googleClientId, setGoogleClientId] = useState<string | null>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null),
-    refreshLock = useRef(false),
-    fileRef = useRef<HTMLInputElement>(null),
-    googleRef = useRef<HTMLDivElement>(null),
-    bufferCache = useRef<{ id: string; buffer: AudioBuffer } | null>(null);
-  const userRef = useRef(user);
+    [refreshing, setRefreshing] = useState(false),
+    [uploadProgress, setUploadProgress] = useState(0),
+    [uploadTitle, setUploadTitle] = useState(""),
+    [uploadArtist, setUploadArtist] = useState(""),
+    [uploadFile, setUploadFile] = useState<File | null>(null),
+    [shareGroup, setShareGroup] = useState(""),
+    [rights, setRights] = useState(false),
+    [syncing, setSyncing] = useState(false),
+    [aiStyle, setAiStyle] = useState<"balanced" | "flow" | "challenge">(
+      "balanced",
+    );
+  const fileInput = useRef<HTMLInputElement>(null),
+    pullStart = useRef<number | null>(null),
+    gateSong = useRef<Song | null>(null),
+    userRef = useRef(user),
+    gameRef = useRef(game),
+    profileRef = useRef(progress);
   userRef.current = user;
-  setApiUser(user?.id || null);
+  gameRef.current = game;
+  profileRef.current = progress;
+  const invite = useMemo(
+    () => new URLSearchParams(location.search).get("invite") || "reset-none",
+    [],
+  );
   const notify = useCallback(
-    (text: string, action?: () => void, actionLabel?: string) =>
-      setToast({ text, action, actionLabel }),
+    (text: string, undo?: () => void) => setToast({ text, undo }),
     [],
   );
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), toast.action ? 6500 : 3200);
+    const t = setTimeout(() => setToast(null), toast.undo ? 7000 : 4000);
     return () => clearTimeout(t);
   }, [toast]);
-  useEffect(() => {
-    const t = setTimeout(() => setIntro(false), 2200);
-    return () => clearTimeout(t);
-  }, []);
-  const visibleResults = useMemo(() => {
-    const map = new Map<string, Result>();
-    for (const r of results)
-      if (!r.ownerId || r.ownerId === user?.id) map.set(r.id, r);
-    for (const r of cloudResults) map.set(r.id, r);
-    return [...map.values()].sort((a, b) => b.createdAt - a.createdAt);
-  }, [results, cloudResults, user]);
-  const load = useCallback(async () => {
-    setBootError("");
-    try {
-      const [meta, localSongs, localResults, prefs] = await Promise.all([
-        fetch("/music/make-something.json").then((r) => {
-          if (!r.ok) throw new Error();
-          return r.json() as Promise<Analysis>;
-        }),
-        store.songs(),
-        store.results(),
-        store.settings(),
+  const allSongs = useMemo(
+    () => [
+      ...songs,
+      ...groupSongs.filter((g) => !songs.some((s) => s.id === g.id)),
+    ],
+    [songs, groupSongs],
+  );
+  const chart = useMemo(
+    () =>
+      selected
+        ? createChart(selected.analysis, difficulty, selected.arrangement)
+        : [],
+    [selected, difficulty],
+  );
+  const visibleSongs = allSongs.filter((s) =>
+    `${s.title} ${s.artist}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  async function loadGroups() {
+    if (!userRef.current) return;
+    const r = await api<{ groups: Group[] }>("/me/groups");
+    setGroups(r.groups);
+    setGroupId((previous) =>
+      r.groups.some((g) => g.id === previous)
+        ? previous
+        : r.groups[0]?.id || "",
+    );
+  }
+  async function loadProfile() {
+    if (!userRef.current) return;
+    const id = userRef.current.id;
+    const data = await Promise.allSettled([
+      api<{ results: Result[] }>("/me/results"),
+      api<{ progress: Progress }>("/me/progress"),
+      api<{ settings: Settings | null }>("/me/settings"),
+    ]);
+    if (userRef.current?.id !== id) return;
+    if (data[0].status === "fulfilled") {
+      const remote = data[0].value.results;
+      setResults((prev) => [
+        ...remote.map((r) => ({ ...r, ownerId: id })),
+        ...prev.filter(
+          (r) => r.ownerId === id && !remote.some((x) => x.id === r.id),
+        ),
       ]);
-      const builtin: Song = {
-        id: "make-something",
-        title: "MAKE SOMETHING.",
-        artist: "OFFSKU",
-        duration: meta.duration,
-        bpm: meta.bpm,
-        analysis: meta,
-        source: "/music/make-something.mp3",
-        builtin: true,
-        addedAt: 0,
-      };
-      setSongs([
-        localSongs.find((s) => s.id === builtin.id) || builtin,
-        ...localSongs
-          .filter((s) => s.id !== builtin.id)
-          .sort((a, b) => b.addedAt - a.addedAt),
-      ]);
-      setResults(localResults);
-      if (prefs) setSettings({ ...DEFAULT_SETTINGS, ...prefs });
-      const config = await api<{ googleClientId: string | null }>(
-        "/config",
-      ).catch(() => null);
-      setGoogleClientId(config?.googleClientId || null);
-      const profile = await api<{ user: User }>("/me/profile").catch(
-        () => null,
-      );
-      setCloudResults([]);
-      if (profile) {
-        setUser(profile.user);
-        const remote = await api<{ results: Result[] }>("/me/results").catch(
-          () => null,
-        );
-        if (remote) setCloudResults(remote.results);
-      } else {
-        setUser(null);
-      }
-      return true;
-    } catch {
-      setBootError(
-        "ライブラリを読み込めませんでした。接続を確認して再試行してください",
-      );
-      return false;
-    } finally {
-      setBooting(false);
     }
-  }, []);
+    if (data[1].status === "fulfilled") setProgress(data[1].value.progress);
+    if (data[2].status === "fulfilled" && data[2].value.settings) {
+      setSettings({ ...DEFAULT_SETTINGS, ...data[2].value.settings });
+    }
+    await loadGroups();
+  }
+  async function initialize() {
+    setLoading(true);
+    setInitialError("");
+    try {
+      const [config, catalog, saved, localResults, localSettings] =
+        await Promise.all([
+          api<{ googleClientId: string }>("/config"),
+          fetch("/music/catalog.json").then((r) => r.json()) as Promise<
+            {
+              id: string;
+              title: string;
+              artist: string;
+              source: string;
+              analysis: string;
+            }[]
+          >,
+          store.songs(),
+          store.results(),
+          store.settings(),
+        ]);
+      const builtin = await Promise.all(
+        catalog.map(async (s) => ({
+          ...s,
+          analysis: (await fetch(s.analysis).then((r) => r.json())) as Analysis,
+        })),
+      );
+      setSongs([
+        ...builtin.map((s) => ({
+          ...s,
+          duration: s.analysis.duration,
+          bpm: s.analysis.bpm,
+          builtin: true,
+          canonical: true,
+          addedAt: 0,
+        })),
+        ...saved.filter((s) => !s.builtin),
+      ]);
+      setClientId(config.googleClientId);
+      setResults(
+        localResults.map((r) =>
+          r.songId === "make-something"
+            ? { ...r, songId: "play-pay", title: "Play & Pay" }
+            : r,
+        ),
+      );
+      if (localSettings) setSettings({ ...DEFAULT_SETTINGS, ...localSettings });
+      const guest = await store.guestProgress();
+      setProgress(guest || progression());
+      try {
+        const { user: u } = await api<{ user: User }>("/me/profile");
+        setApiUser(u.id);
+        setUser(u);
+        userRef.current = u;
+      } catch {}
+      setLoading(false);
+    } catch (e) {
+      setInitialError((e as Error).message);
+      setLoading(false);
+    }
+  }
   useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
+    initialize();
     const changed = () => {
+      setApiUser(null);
       setUser(null);
-      setCloudResults([]);
+      userRef.current = null;
+      setGroups([]);
+      setGroupSongs([]);
+      store.guestProgress().then((p) => setProgress(p || progression()));
       notify("ログイン状態が変わりました。もう一度ログインしてください");
     };
-    window.addEventListener("off-auth-change", changed);
-    return () => window.removeEventListener("off-auth-change", changed);
-  }, [notify]);
-  const selectedSong = songs.find((s) => s.id === selected);
+    addEventListener("off-auth-change", changed);
+    return () => removeEventListener("off-auth-change", changed);
+  }, []);
   useEffect(() => {
-    if (selectedSong) setBpmDraft(String(selectedSong.bpm));
-    setError("");
-  }, [selected]);
-  const refresh = async () => {
-    if (refreshLock.current) return;
-    refreshLock.current = true;
-    setRefreshing(true);
-    try {
-      const loaded = await load();
-      if (!loaded)
-        notify("更新できませんでした。前のライブラリを表示しています");
-      else if (navigator.onLine) notify("ライブラリを更新しました");
-      else notify("オフラインの記録を表示しています");
-    } finally {
-      setPull(0);
-      setRefreshing(false);
-      refreshLock.current = false;
+    if (user) loadProfile().catch((e) => notify(e.message));
+  }, [user?.id]);
+  useEffect(() => {
+    if (entered && !game) setAmbience(settings.ambient ?? 0.055);
+  }, [entered, settings.ambient, game]);
+  useEffect(() => {
+    localStorage.setItem("off-group", groupId);
+    if (!user || !groupId) {
+      setGroupSongs([]);
+      return;
     }
-  };
-  const beginTouch = (e: TouchEvent) => {
-    if (
-      window.scrollY === 0 &&
-      !sheet &&
-      !selected &&
-      !game &&
-      !result &&
-      !(e.target as HTMLElement).closest("button,input")
-    )
-      touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-  const moveTouch = (e: TouchEvent) => {
-    const s = touchStart.current;
-    if (s && window.scrollY === 0) {
-      const dy = e.touches[0].clientY - s.y,
-        dx = e.touches[0].clientX - s.x;
-      if (dy > 0 && dy > Math.abs(dx)) setPull(Math.min(105, dy * 0.45));
-    }
-  };
-  const endTouch = () => {
-    touchStart.current = null;
-    if (pull >= 72) void refresh();
-    else setPull(0);
-  };
-  const saveSong = async (song: Song) => {
-    await store.saveSong(song);
-    setSongs((old) => old.map((s) => (s.id === song.id ? song : s)));
-  };
-  const removeSong = async (song: Song) => {
-    if (song.builtin) return;
-    try {
-      await store.deleteSong(song.id);
-      setSongs((old) => old.filter((s) => s.id !== song.id));
-      setSelected(null);
-      notify(
-        "曲を削除しました",
-        () => {
-          void store.saveSong(song).then(() => {
-            setSongs((old) => [...old, song]);
-            notify("元に戻しました");
-          });
-        },
-        "元に戻す",
+    let active = true;
+    api<{ songs: Song[] }>(`/me/groups/${groupId}/songs`)
+      .then((r) => {
+        if (active) setGroupSongs(r.songs);
+      })
+      .catch((e) => notify(e.message));
+    return () => {
+      active = false;
+    };
+  }, [user?.id, groupId, songRevision]);
+  useEffect(() => {
+    if (!user || !groupId) return;
+    let stopped = false,
+      socket: WebSocket | undefined,
+      timer: ReturnType<typeof setTimeout>,
+      heartbeat: ReturnType<typeof setInterval>,
+      attempt = 0;
+    function connect() {
+      setLive("connecting");
+      socket = new WebSocket(
+        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/me/groups/${groupId}/live`,
       );
-    } catch {
-      setError("削除できませんでした");
-    }
-  };
-  const importSong = async () => {
-    if (!file || !title.trim() || progress !== null) return;
-    setError("");
-    setProgress(0);
-    try {
-      if (file.size > 50 * 1024 * 1024)
-        throw new Error("50MB以下のファイルを選んでください");
-      const buffer = await decodeAudio(file);
-      if (buffer.duration > 600 || buffer.duration < 3)
-        throw new Error("3秒〜10分の音源を選んでください");
-      const analysis = await analyzeAudio(buffer, setProgress),
-        digest = await crypto.subtle.digest(
-          "SHA-256",
-          await file.arrayBuffer(),
-        ),
-        id = Array.from(new Uint8Array(digest).slice(0, 16), (v) =>
-          v.toString(16).padStart(2, "0"),
-        ).join("");
-      if (songs.some((s) => s.id === id))
-        throw new Error("この曲は追加済みです");
-      const song: Song = {
-        id,
-        title: title.trim().slice(0, 140),
-        artist: artist.trim().slice(0, 80) || "マイライブラリ",
-        duration: buffer.duration,
-        bpm: analysis.bpm,
-        analysis,
-        blob: file,
-        addedAt: Date.now(),
+      socket.onopen = () => {
+        attempt = 0;
+        setLive("live");
+        setRevision((r) => r + 1);
+        setSongRevision((r) => r + 1);
+        heartbeat = setInterval(() => {
+          if (socket?.readyState === 1) socket.send("ping");
+        }, 25000);
       };
-      await store.saveSong(song);
-      setSongs((old) => [...old, song]);
-      bufferCache.current = { id, buffer };
-      setSheet(null);
-      setFile(null);
-      setTitle("");
-      setArtist("");
-      setSelected(id);
-      notify("曲と譜面を保存しました");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "取り込めませんでした");
-    } finally {
-      setProgress(null);
+      socket.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type?.endsWith(".changed")) {
+            setRevision((r) => r + 1);
+            if (event.type === "songs.changed") setSongRevision((r) => r + 1);
+            if (event.type === "members.changed") loadGroups().catch(() => {});
+          }
+        } catch {}
+      };
+      socket.onclose = () => {
+        clearInterval(heartbeat);
+        if (!stopped) {
+          setLive("reconnecting");
+          timer = setTimeout(connect, Math.min(30000, 1000 * 2 ** attempt++));
+        }
+      };
+      socket.onerror = () => socket?.close();
     }
-  };
-  const startGame = async (song: Song) => {
-    setError("");
-    setBusy("音源を読み込んでいます");
+    connect();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      socket?.close();
+    };
+  }, [user?.id, groupId]);
+  async function enter() {
+    await unlockAudio();
+    setEntered(true);
+    chime([48, 60, 67, 72, 76, 79, 84], settings.effects * 0.22, 0.09);
+    setAmbience(settings.ambient ?? 0.055);
+    if (invite !== "reset-none") {
+      setTab("ranking");
+      if (!user) setPanel("login");
+    }
+  }
+  async function saveSettings(next: Settings) {
+    setSettings(next);
+    await store.saveSettings(next);
+    if (user)
+      try {
+        await api("/me/settings", next);
+      } catch (e) {
+        notify((e as Error).message);
+        return;
+      }
+    notify("設定を保存しました");
+  }
+  function chooseSong(song: Song) {
+    setSelected(song);
+    setFinished(null);
+    setPanel("song");
+  }
+  async function play(song = selected) {
+    if (!song || busy) return;
+    if (!user && !sessionStorage.getItem("off-guest")) {
+      gateSong.current = song;
+      setPanel("login");
+      return;
+    }
+    setBusy(true);
+    setBusyText("音源を準備中");
+    if (
+      matchMedia("(pointer: coarse)").matches &&
+      document.documentElement.requestFullscreen
+    ) {
+      document.documentElement
+        .requestFullscreen()
+        .then(() => {
+          const orientation = screen.orientation as ScreenOrientation & {
+            lock?: (o: string) => Promise<void>;
+          };
+          return orientation.lock?.("landscape");
+        })
+        .catch(() => {});
+    }
     try {
       await unlockAudio();
-      let buffer =
-        bufferCache.current?.id === song.id
-          ? bufferCache.current.buffer
-          : undefined;
-      if (!buffer) {
-        let blob = song.blob;
-        if (!blob) {
-          const r = await fetch(song.source!, {
-            signal: AbortSignal.timeout(30000),
-          });
-          if (!r.ok) throw new Error("音源を取得できませんでした");
-          blob = await r.blob();
+      let current = song;
+      const blob =
+        song.blob ||
+        (await fetch(song.source!, { credentials: "same-origin" }).then((r) => {
+          if (!r.ok)
+            throw new Error(
+              "音源を読み込めません。ログイン状態をご確認ください",
+            );
+          return r.blob();
+        }));
+      const buffer = await decodeAudio(blob!);
+      if (song.analysis.version !== 2) {
+        setBusyText("発音位置を再解析中");
+        const analysis = await analyzeAudio(buffer, (p) =>
+          setUploadProgress(p),
+        );
+        current = {
+          ...song,
+          analysis,
+          bpm: analysis.bpm,
+          duration: analysis.duration,
+          canonical: false,
+        };
+        if (!song.builtin) {
+          await store.saveSong(current);
+          setSongs((prev) => prev.map((s) => (s.id === song.id ? current : s)));
         }
-        buffer = await decodeAudio(blob);
-        bufferCache.current = { id: song.id, buffer };
       }
-      if (
-        !createChart(song.analysis, difficulty, song.arrangement, song.bpm)
-          .length
-      )
-        throw new Error("譜面を作れませんでした。BPMを調整してください");
-      setSelected(null);
-      setResult(null);
-      setGame({ song, buffer, difficulty });
+      const notes = createChart(
+        current.analysis,
+        difficulty,
+        current.arrangement,
+      );
+      if (!notes.length) throw new Error("この音源から音符を作れませんでした");
+      let ticket: string | undefined,
+        ranked = false;
+      if (user) {
+        setBusyText("プレイを登録中");
+        const r = await api<{ ticket: string; ranked: boolean }>("/me/plays", {
+          songId: current.id,
+          title: current.title,
+          duration: current.duration,
+          difficulty,
+          speed: settings.speed,
+          groupId: groupId || null,
+          practice:
+            !!current.arrangement || !current.canonical || settings.speed !== 1,
+          notes,
+        });
+        ticket = r.ticket;
+        ranked = r.ranked;
+      }
+      setPanel(null);
+      setFinished(null);
+      setGame({
+        settings: { ...settings },
+        difficulty,
+        song: current,
+        buffer,
+        notes,
+        ticket,
+        ranked,
+        groupId: groupId || undefined,
+      });
+      setBusy(false);
+      // Fullscreen/orientation are best effort. Safari uses the physical orientation.
     } catch (e) {
-      setError(e instanceof Error ? e.message : "再生できませんでした");
-    } finally {
-      setBusy("");
+      notify((e as Error).message);
+      setBusy(false);
     }
-  };
-  const finishGame = async (raw: Result) => {
-    const r = { ...raw, ownerId: userRef.current?.id };
+  }
+  async function onFinish(result: Result) {
+    const played = gameRef.current!;
     setGame(null);
-    setResult(r);
-    setResults((old) => [r, ...old]);
-    try {
-      await store.saveResult(r);
-      notify("記録を保存しました");
-    } catch {
-      notify("端末の空き容量が足りず保存できませんでした");
-    }
-    if (userRef.current) {
+    const id = userRef.current?.id;
+    let final: Result = {
+      ...result,
+      id: played.ticket || result.id,
+      ownerId: id,
+      groupId: played.groupId,
+      ranked: played.ranked,
+      ticket: played.ticket,
+    };
+    setFinished(final);
+    setPanel(null);
+    chime(
+      result.miss === 0
+        ? [60, 64, 67, 72, 76, 79, 84]
+        : result.accuracy >= 65
+          ? [60, 64, 67, 72, 79]
+          : [60, 64, 67],
+      settings.effects * 0.24,
+      0.105,
+    );
+    setAmbience(settings.ambient ?? 0.055);
+    await store.saveResult(final);
+    setResults((prev) => [final, ...prev.filter((r) => r.id !== final.id)]);
+    if (id && played.ticket) {
+      setSyncing(true);
       try {
-        await api("/me/results", r);
-        const saved = { ...r, synced: true };
-        await store.saveResult(saved);
-        setResults((old) => old.map((x) => (x.id === r.id ? saved : x)));
-        notify("記録を同期しました");
-      } catch {
-        notify("端末に保存しました。同期は成績画面から再試行できます");
-      }
-    }
-  };
-  const saveSettings = async (next: Settings) => {
-    setSettings(next);
-    try {
-      await store.saveSettings(next);
-    } catch {
-      setError("設定を保存できませんでした");
-    }
-  };
-  const syncRecords = async () => {
-    if (!user) {
-      setSheet("account");
-      return;
-    }
-    setBusy("記録を同期しています");
-    try {
-      for (const r of results
-        .filter((r) => (!r.ownerId || r.ownerId === user.id) && !r.synced)
-        .slice(0, 100)) {
-        await api("/me/results", r);
-        const next = { ...r, ownerId: user.id, synced: true };
-        await store.saveResult(next);
-      }
-      const [remote, local] = await Promise.all([
-        api<{ results: Result[] }>("/me/results"),
-        store.results(),
-      ]);
-      setCloudResults(remote.results);
-      setResults(local);
-      notify("記録を同期しました");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "同期に失敗しました");
-    } finally {
-      setBusy("");
-    }
-  };
-  useEffect(() => {
-    if (sheet !== "account" || user || !googleClientId) return;
-    let cancelled = false;
-    const setup = async () => {
-      try {
-        const { nonce } = await api<{ nonce: string }>("/auth/nonce");
-        if (!window.google)
-          await new Promise<void>((resolve, reject) => {
-            const existing = document.querySelector("script[data-google]");
-            if (existing) {
-              existing.addEventListener("load", () => resolve(), {
-                once: true,
-              });
-              setTimeout(
-                () =>
-                  window.google
-                    ? resolve()
-                    : reject(new Error("Googleに接続できませんでした")),
-                6000,
-              );
-              return;
-            }
-            const s = document.createElement("script");
-            s.src = "https://accounts.google.com/gsi/client";
-            s.dataset.google = "true";
-            s.async = true;
-            s.onload = () => resolve();
-            s.onerror = () => {
-              s.remove();
-              reject(new Error("Googleに接続できませんでした"));
-            };
-            document.head.append(s);
-          });
-        if (cancelled || !googleRef.current || !window.google) return;
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          nonce,
-          auto_select: false,
-          callback: async ({ credential }: { credential: string }) => {
-            try {
-              const r = await api<{ user: User }>("/auth/google", {
-                credential,
-              });
-              setUser(r.user);
-              const remote = await api<{ results: Result[] }>("/me/results");
-              setCloudResults(remote.results);
-              setSheet(null);
-              notify("ログインしました");
-            } catch (e) {
-              setError(
-                e instanceof Error ? e.message : "ログインできませんでした",
-              );
-            }
-          },
-        });
-        window.google.accounts.id.renderButton(googleRef.current, {
-          theme: "outline",
-          size: "large",
-          shape: "pill",
-          text: "signin_with",
-          locale: "ja",
-          width: 280,
-        });
+        const r = await api<{ result: Result; progress: Progress }>(
+          `/me/plays/${played.ticket}/finish`,
+          { hits: result.replay || [] },
+        );
+        if (userRef.current?.id === id) {
+          final = { ...r.result, ownerId: id };
+          setFinished(final);
+          setProgress(r.progress);
+          await store.saveResult(final);
+          setResults((prev) => [
+            final,
+            ...prev.filter((x) => x.id !== final.id),
+          ]);
+          setRevision((v) => v + 1);
+        }
       } catch (e) {
-        if (!cancelled)
-          setError(
-            e instanceof Error ? e.message : "ログインを準備できませんでした",
+        notify((e as Error).message + " · 再送信できます");
+      } finally {
+        setSyncing(false);
+      }
+    } else {
+      const p = profileRef.current,
+        xp = playXp(result.score, result.miss),
+        next = progression(
+          p.xp + xp,
+          p.plays + 1,
+          p.uploads,
+          Math.max(p.maxCombo, result.maxCombo),
+        );
+      final = {
+        ...final,
+        xpEarned: xp,
+        previousLevel: p.level,
+        level: next.level,
+      };
+      setFinished(final);
+      setProgress(next);
+      await store.saveResult(final);
+      await store.saveGuestProgress(next);
+    }
+  }
+  async function retrySync() {
+    if (!finished?.ticket || !finished.replay || !user) return;
+    setSyncing(true);
+    try {
+      const r = await api<{ result: Result; progress: Progress }>(
+        `/me/plays/${finished.ticket}/finish`,
+        { hits: finished.replay },
+      );
+      setFinished({ ...r.result, ownerId: user.id });
+      setProgress(r.progress);
+      await store.saveResult({ ...r.result, ownerId: user.id });
+      notify("クラウドに保存しました");
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setSyncing(false);
+    }
+  }
+  async function refresh() {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (user) await loadProfile();
+      setRevision((r) => r + 1);
+      setSongRevision((r) => r + 1);
+      notify("更新しました");
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setRefreshing(false);
+      setPull(0);
+    }
+  }
+  async function login(u: User) {
+    setApiUser(u.id);
+    setUser(u);
+    userRef.current = u;
+    setPanel(gateSong.current ? "song" : null);
+    sessionStorage.removeItem("off-guest");
+    notify("Googleでログインしました");
+    gateSong.current = null;
+  }
+  async function logout() {
+    try {
+      await api("/auth/logout", {});
+      setApiUser(null);
+      userRef.current = null;
+      setUser(null);
+      setGroups([]);
+      setGroupSongs([]);
+      setResults(await store.results());
+      setProgress((await store.guestProgress()) || progression());
+      setPanel(null);
+      window.google?.accounts.id.disableAutoSelect();
+      notify("ログアウトしました");
+    } catch (e) {
+      notify((e as Error).message);
+    }
+  }
+  async function upload() {
+    if (!uploadFile || busy) return;
+    setBusy(true);
+    setUploadProgress(0);
+    setBusyText("音源を分析中");
+    try {
+      if (uploadFile.size > 20 * 1024 * 1024)
+        throw new Error("音源は20MB以下にしてください");
+      const buffer = await decodeAudio(uploadFile);
+      if (buffer.duration < 3 || buffer.duration > 600)
+        throw new Error("3秒〜10分の音源を選んでください");
+      const analysis = await analyzeAudio(buffer, setUploadProgress),
+        bytes = await uploadFile.arrayBuffer(),
+        hash = Array.from(
+          new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+          (v) => v.toString(16).padStart(2, "0"),
+        ).join("");
+      const duplicate = songs.find((s) => s.hash === hash);
+      if (duplicate) {
+        setSelected(duplicate);
+        setPanel("song");
+        notify("この曲は追加済みです");
+        return;
+      }
+      const song: Song = {
+        id: crypto.randomUUID(),
+        title: uploadTitle.trim() || uploadFile.name.replace(/\.[^.]+$/, ""),
+        artist: uploadArtist.trim(),
+        analysis,
+        duration: analysis.duration,
+        bpm: analysis.bpm,
+        blob: uploadFile,
+        addedAt: Date.now(),
+        hash,
+      };
+      await store.saveSong(song);
+      setSongs((prev) => [...prev, song]);
+      setSelected(song);
+      setPanel("song");
+      setUploadFile(null);
+      if (user) {
+        const r = await api<{ progress: Progress }>("/me/progress/uploads", {
+          hash,
+        });
+        setProgress(r.progress);
+      } else {
+        const hashes = await store.guestUploads();
+        if (!hashes.includes(hash)) {
+          const p = profileRef.current,
+            next = progression(p.xp + 30, p.plays, p.uploads + 1, p.maxCombo);
+          setProgress(next);
+          await store.saveGuestProgress(next);
+          await store.saveGuestUploads([...hashes, hash]);
+        }
+      }
+      notify("音源を解析して追加しました");
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function shareSong() {
+    if (!selected || !shareGroup || !rights || !user || busy) return;
+    setBusy(true);
+    setBusyText("グループに音源を共有中");
+    try {
+      const blob =
+          selected.blob ||
+          (await fetch(selected.source!).then((r) => r.blob())),
+        bytes = await blob!.arrayBuffer(),
+        hash = Array.from(
+          new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+          (v) => v.toString(16).padStart(2, "0"),
+        ).join("");
+      const analysis = JSON.parse(
+        JSON.stringify(selected.analysis, (_k, v) =>
+          typeof v === "number" ? Math.round(v * 10000) / 10000 : v,
+        ),
+      );
+      const r = await api<{ id: string; status: string }>(
+        `/me/groups/${shareGroup}/songs`,
+        {
+          title: selected.title,
+          artist: selected.artist,
+          hash,
+          size: blob!.size,
+          analysis,
+          rightsConfirmed: true,
+        },
+      );
+      if (r.status !== "ready") {
+        const response = await fetch(
+          `/api/me/groups/${shareGroup}/songs/${r.id}/audio`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/octet-stream",
+              "X-Off-Music": "1",
+              "X-Off-User": user.id,
+            },
+            body: blob,
+          },
+        );
+        if (!response.ok)
+          throw new Error(
+            (await response.json()).error || "共有できませんでした",
           );
       }
-    };
-    void setup();
-    return () => {
-      cancelled = true;
-    };
-  }, [sheet, user, googleClientId, notify]);
-  const arrange = async () => {
-    if (!selectedSong) return;
+      setGroupId(shareGroup);
+      setSongRevision((v) => v + 1);
+      setRevision((v) => v + 1);
+      notify("グループに音源を共有しました");
+      setRights(false);
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function arrange() {
+    if (!selected || busy) return;
     if (!user) {
-      setSelected(null);
-      setSheet("account");
+      setPanel("login");
       return;
     }
-    setAiBusy(true);
-    setError("");
+    setBusy(true);
+    setBusyText("Workers AIでアレンジ中");
     try {
-      const r = await api<{ arrangement: Arrangement }>("/me/arrange", {
-        bpm: selectedSong.bpm,
-        duration: selectedSong.duration,
-        energy: selectedSong.analysis.energy,
-        style: aiStyle,
-      });
-      await saveSong({ ...selectedSong, arrangement: r.arrangement });
-      notify("AIアレンジを保存しました");
+      const { arrangement } = await api<{ arrangement: Song["arrangement"] }>(
+        "/me/arrange",
+        {
+          bpm: selected.bpm,
+          duration: selected.duration,
+          energy: selected.analysis.energy,
+          style: aiStyle,
+        },
+      );
+      setSelected({ ...selected, arrangement });
+      notify("AIアレンジを適用しました · 練習モード");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "AIアレンジに失敗しました");
+      notify((e as Error).message);
     } finally {
-      setAiBusy(false);
+      setBusy(false);
     }
-  };
-  const filtered = songs.filter(
-    (s) =>
-      (filter === "all" || !s.builtin) &&
-      (s.title + " " + s.artist).toLowerCase().includes(search.toLowerCase()),
-  );
-  const suggestions = search ? filtered.slice(0, 5) : [];
-  const bestFor = (songId: string) =>
-    visibleResults
-      .filter((r) => r.songId === songId)
-      .sort((a, b) => b.score - a.score)[0];
-  const featured = songs.find((s) => s.builtin),
-    modal = !!sheet || !!selected;
+  }
+  async function removeSong(song: Song) {
+    await store.deleteSong(song.id);
+    setSongs((prev) => prev.filter((s) => s.id !== song.id));
+    notify("曲を削除しました", async () => {
+      await store.saveSong(song);
+      setSongs((prev) => [...prev, song]);
+      notify("曲を戻しました");
+    });
+  }
+  const localRecords = results.filter((r) =>
+      user ? r.ownerId === user.id : !r.ownerId,
+    ),
+    best = (id: string) =>
+      Math.max(
+        0,
+        ...localRecords.filter((r) => r.songId === id).map((r) => r.score),
+      );
+  if (loading) return <Skeleton />;
+  if (initialError)
+    return (
+      <div className="fatal">
+        <Logo />
+        <p>{initialError}</p>
+        <button className="primary" onClick={initialize}>
+          再読み込み
+        </button>
+      </div>
+    );
   return (
     <MotionConfig reducedMotion={settings.reducedMotion ? "always" : "user"}>
-      <div className={"app " + (settings.reducedMotion ? "reduce-motion" : "")}>
-        {!game && !result && (
-          <>
-            <aside className="desktop-rail">
+      <div
+        className={
+          "app-v2 theme-" +
+          (settings.theme || "pearl") +
+          (settings.reducedMotion ? " reduce-motion" : "")
+        }
+      >
+        <AnimatePresence>
+          {!entered && (
+            <Intro onStart={enter} reduced={settings.reducedMotion} />
+          )}
+        </AnimatePresence>
+        {game ? (
+          <Game
+            key={game.song.id + game.ticket}
+            {...game}
+            onFinish={onFinish}
+            onExit={() => {
+              setGame(null);
+              setAmbience(settings.ambient ?? 0.055);
+            }}
+          />
+        ) : (
+          <div className="lobby-content" inert={!entered}>
+            <header className="app-header">
               <button
-                className="rail-symbol"
-                aria-label="タイトル演出"
+                className="logo-button"
                 onClick={() => {
-                  setIntro(true);
-                  setTimeout(() => setIntro(false), 2200);
+                  setTab("library");
+                  setFinished(null);
                 }}
+                aria-label="曲一覧"
               >
-                <AudioLines size={25} />
+                <Logo />
               </button>
-              <div className="rail-nav">
+              <div className="header-controls">
                 <button
-                  className={page === "library" ? "active" : ""}
-                  aria-label="ライブラリ"
-                  onClick={() => setPage("library")}
+                  className="icon-button audio-toggle"
+                  aria-label={
+                    (settings.ambient ?? 0) > 0 ? "BGMをミュート" : "BGMをオン"
+                  }
+                  onClick={() =>
+                    saveSettings({
+                      ...settings,
+                      ambient: (settings.ambient ?? 0) > 0 ? 0 : 0.055,
+                    })
+                  }
                 >
-                  <Library size={22} />
+                  {(settings.ambient ?? 0) > 0 ? (
+                    <Volume2 size={18} />
+                  ) : (
+                    <VolumeX size={18} />
+                  )}
                 </button>
                 <button
-                  className={page === "records" ? "active" : ""}
-                  aria-label="成績"
-                  onClick={() => setPage("records")}
+                  className="level-chip glass"
+                  onClick={() => {
+                    setTab("profile");
+                    setFinished(null);
+                  }}
                 >
-                  <Activity size={22} />
+                  <span>Lv.{progress.level}</span>
+                  <i
+                    style={{
+                      width:
+                        Math.max(
+                          8,
+                          ((progress.xp - progress.levelStartXp) /
+                            (progress.nextLevelXp - progress.levelStartXp)) *
+                            100,
+                        ) + "%",
+                    }}
+                  />
+                </button>
+                <button
+                  className="icon-button glass"
+                  aria-label="設定"
+                  onClick={() => setPanel("settings")}
+                >
+                  <Settings2 size={19} />
+                </button>
+                <button
+                  className="avatar-button glass"
+                  aria-label="アカウント"
+                  onClick={() => setPanel("account")}
+                >
+                  {user?.picture ? (
+                    <img
+                      src={user.picture}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <Users size={18} />
+                  )}
                 </button>
               </div>
-              <button
-                className="rail-settings"
-                aria-label="設定"
-                onClick={() => {
-                  setError("");
-                  setSheet("settings");
-                }}
-              >
-                <SlidersHorizontal size={21} />
-              </button>
-            </aside>
-            <div
-              className="main-shell"
-              inert={modal || intro || booting || !!busy}
-              onTouchStart={beginTouch}
-              onTouchMove={moveTouch}
-              onTouchEnd={endTouch}
-              onPointerDown={(e) => {
-                if (
-                  e.pointerType === "mouse" &&
-                  window.scrollY === 0 &&
-                  !modal &&
-                  !game &&
-                  !(e.target as HTMLElement).closest("button,input")
-                )
-                  touchStart.current = { x: e.clientX, y: e.clientY };
+            </header>
+            <main
+              className="app-main"
+              onTouchStart={(e) => {
+                if (scrollY <= 0 && !panel)
+                  pullStart.current = e.touches[0].clientY;
               }}
-              onPointerMove={(e) => {
-                const s = touchStart.current;
-                if (e.pointerType === "mouse" && s && window.scrollY === 0) {
-                  const dy = e.clientY - s.y,
-                    dx = e.clientX - s.x;
-                  if (dy > 0 && dy > Math.abs(dx))
-                    setPull(Math.min(105, dy * 0.45));
-                }
+              onTouchMove={(e) => {
+                if (pullStart.current !== null)
+                  setPull(
+                    Math.min(
+                      90,
+                      Math.max(
+                        0,
+                        (e.touches[0].clientY - pullStart.current) * 0.5,
+                      ),
+                    ),
+                  );
               }}
-              onPointerUp={(e) => {
-                if (e.pointerType === "mouse") endTouch();
+              onTouchEnd={() => {
+                if (pull > 65) refresh();
+                else setPull(0);
+                pullStart.current = null;
               }}
             >
-              <header className="topbar">
-                <button
-                  className="brand-button"
-                  aria-label="OFF MUSIC ライブラリ"
-                  onClick={() => setPage("library")}
+              {(pull > 0 || refreshing) && (
+                <div
+                  className="pull-refresh"
+                  style={{ height: Math.max(pull, refreshing ? 42 : 0) }}
                 >
-                  <Logo />
-                </button>
-                <span className="header-center">
-                  {page === "library" ? "ライブラリ" : "成績"}
-                </span>
-                <div className="top-actions">
-                  <span className="silent-badge">
-                    <Headphones size={13} /> MUSIC OFF
-                  </span>
-                  <button
-                    className="avatar"
-                    onClick={() => {
-                      setError("");
-                      setSheet("account");
-                    }}
-                    aria-label={user ? "アカウント" : "Googleでログイン"}
-                  >
-                    {user ? user.name.slice(0, 1) : <span>G</span>}
-                  </button>
+                  <RefreshCw size={18} className={refreshing ? "spin" : ""} />
+                  {refreshing
+                    ? "更新中"
+                    : pull > 65
+                      ? "離して更新"
+                      : "下に引いて更新"}
                 </div>
-              </header>
-              <div
-                className="pull-indicator"
-                style={{ height: refreshing ? 65 : pull }}
-                aria-live="polite"
-              >
-                {(pull > 15 || refreshing) && (
-                  <>
-                    <RefreshCw
-                      size={18}
-                      className={refreshing ? "spin" : ""}
-                      style={{
-                        transform: !refreshing
-                          ? `rotate(${pull * 3}deg)`
-                          : undefined,
-                      }}
-                    />
-                    <span>
-                      {refreshing
-                        ? "更新中"
-                        : pull >= 72
-                          ? "離して更新"
-                          : "下に引いて更新"}
-                    </span>
-                  </>
-                )}
-              </div>
-              <main className="content">
-                {bootError && (
-                  <div className="error-banner" role="alert">
-                    {bootError}
-                    <button onClick={() => void load()}>再試行</button>
+              )}
+              {finished ? (
+                <section
+                  className={
+                    "result-v2 " +
+                    (finished.miss === 0
+                      ? "full-combo"
+                      : finished.accuracy >= 65
+                        ? "cleared"
+                        : "completed")
+                  }
+                >
+                  <button
+                    className="back-button"
+                    onClick={() => setFinished(null)}
+                  >
+                    <ArrowLeft size={17} />
+                    曲一覧
+                  </button>
+                  <div className="result-fireworks" aria-hidden="true">
+                    {Array.from({ length: 32 }, (_, i) => (
+                      <i key={i} style={{ "--i": i } as CSSProperties} />
+                    ))}
                   </div>
-                )}
-                {page === "library" ? (
-                  <>
-                    <div className="page-heading">
+                  <div className="result-heading">
+                    <span className="eyebrow">{finished.title}</span>
+                    <h1>
+                      {finished.miss === 0
+                        ? "FULL COMBO"
+                        : finished.accuracy >= 65
+                          ? "STAGE CLEAR"
+                          : "SESSION FINISH"}
+                    </h1>
+                    <span className="result-rank">
+                      {rank(finished.accuracy)}
+                    </span>
+                  </div>
+                  <Mascots
+                    bpm={120}
+                    mood={finished.accuracy >= 65 ? "celebrate" : ""}
+                  />
+                  <div className="result-card glass">
+                    <small>SCORE</small>
+                    <strong className="result-score">
+                      {finished.score.toLocaleString()}
+                    </strong>
+                    <div className="result-metrics">
                       <div>
-                        <span className="eyebrow">YOUR SESSION</span>
-                        <h1>
-                          ライブラリ
-                          <span>{String(songs.length).padStart(2, "0")}</span>
-                        </h1>
+                        <strong>{finished.accuracy.toFixed(2)}%</strong>
+                        <small>ACCURACY</small>
                       </div>
+                      <div>
+                        <strong>{finished.maxCombo}</strong>
+                        <small>MAX COMBO</small>
+                      </div>
+                      <div>
+                        <strong>+{finished.xpEarned ?? 0}</strong>
+                        <small>{syncing ? "保存中…" : "XP"}</small>
+                      </div>
+                    </div>
+                    <div className="judgement-summary">
+                      {(["perfect", "great", "good", "miss"] as const).map(
+                        (g) => (
+                          <div key={g}>
+                            <small>{g.toUpperCase()}</small>
+                            <strong>{finished[g]}</strong>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                    <p className="timing-summary">
+                      EARLY {finished.early ?? 0} · LATE {finished.late ?? 0} ·
+                      平均 {(finished.meanOffset ?? 0) > 0 ? "+" : ""}
+                      {(finished.meanOffset ?? 0).toFixed(1)} ms
+                    </p>
+                    {(finished.level ?? 0) > (finished.previousLevel ?? 0) && (
+                      <div className="level-up">
+                        ✦ LEVEL UP · Lv.{finished.level}
+                      </div>
+                    )}
+                    <div className="save-state">
+                      {syncing ? (
+                        <>
+                          <LoaderCircle size={15} className="spin" />
+                          クラウドに保存中
+                        </>
+                      ) : finished.synced ? (
+                        <>
+                          <Cloud size={15} />
+                          {finished.ranked
+                            ? "ランキング更新済み"
+                            : "クラウドに保存済み · 個人記録"}
+                        </>
+                      ) : finished.ticket ? (
+                        <button className="quiet" onClick={retrySync}>
+                          クラウドへ再送信
+                        </button>
+                      ) : (
+                        <>この端末に保存済み · ゲスト</>
+                      )}
+                    </div>
+                  </div>
+                  <div className="result-actions">
+                    <button
+                      className="primary"
+                      onClick={() =>
+                        play(
+                          allSongs.find((s) => s.id === finished.songId) ||
+                            selected,
+                        )
+                      }
+                    >
+                      <Play size={18} />
+                      もう一度
+                    </button>
+                    {finished.groupId && (
                       <button
-                        className="add-button"
+                        className="quiet"
                         onClick={() => {
-                          setError("");
-                          setSheet("upload");
+                          setFinished(null);
+                          setTab("ranking");
                         }}
                       >
-                        <Plus size={18} />
-                        <span>曲を追加</span>
+                        ランキングを見る
+                      </button>
+                    )}
+                  </div>
+                </section>
+              ) : tab === "library" ? (
+                <>
+                  <section className="hero-v2 glass">
+                    <div className="hero-halo" />
+                    <div className="hero-copy">
+                      <span className="eyebrow">OFFSCREEN</span>
+                      <h1>
+                        OFF
+                        <br />
+                        <em>MUSIC.</em>
+                      </h1>
+                      <div className="hero-meta">
+                        <span>3 PADS</span>
+                        <i />
+                        LANDSCAPE
+                      </div>
+                      <button
+                        className="primary"
+                        onClick={() => chooseSong(songs[0])}
+                      >
+                        <Play size={17} fill="currentColor" />
+                        Play & Pay <ArrowRight size={17} />
                       </button>
                     </div>
-                    {featured && (
-                      <motion.section
-                        className="hero glass"
-                        initial={{ opacity: 0, y: 18 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.7, delay: 0.15 }}
+                    <div className="hero-characters">
+                      <Mascots bpm={112} />
+                    </div>
+                    <div className="hero-bottom">
+                      <span>01 — PLAY & PAY</span>
+                      <AudioLines size={24} />
+                      <span>OFFSCREEN</span>
+                    </div>
+                  </section>
+                  {!user && (
+                    <button
+                      className="guest-benefit glass"
+                      onClick={() => setPanel("login")}
+                    >
+                      <Cloud size={20} />
+                      <span>
+                        <strong>ゲストでプレイ中</strong>
+                        <small>ログインでレベル保存・グループランキング</small>
+                      </span>
+                      <ChevronRight size={17} />
+                    </button>
+                  )}
+                  <section className="library-section">
+                    <div className="section-top">
+                      <h2>
+                        ライブラリ{" "}
+                        <span>
+                          {allSongs.length.toString().padStart(2, "0")}
+                        </span>
+                      </h2>
+                      <button
+                        className="quiet"
+                        onClick={() => {
+                          setUploadTitle("");
+                          setUploadArtist("");
+                          setPanel("upload");
+                        }}
                       >
-                        <div className="hero-grid" />
-                        <div className="hero-copy">
-                          <span className="pill">
-                            <i className="live-dot" />
-                            収録曲 <span>01</span>
-                          </span>
-                          <h2>
-                            MAKE
-                            <br />
-                            SOMETHING<span>.</span>
-                          </h2>
-                          <div className="artist-line">
-                            <span className="artist-avatar">O</span>
-                            <span>OFFSKU</span>
-                            <i />{" "}
-                            <span className="hero-meta">
-                              {formatTime(featured.duration)} <b>·</b>{" "}
-                              {featured.bpm} BPM
-                            </span>
-                          </div>
-                          <div className="hero-actions">
-                            <button
-                              className="primary"
-                              onClick={() => setSelected(featured.id)}
-                            >
-                              <Play size={17} fill="currentColor" />
-                              プレイ
-                              <ArrowRight size={16} />
-                            </button>
-                            <button
-                              className="round-button"
-                              onClick={() => setSelected(featured.id)}
-                              aria-label="収録曲の詳細"
-                            >
-                              <MoreHorizontal size={22} />
-                            </button>
-                          </div>
-                        </div>
-                        <Sculpture />
-                        <div className="hero-bottom">
-                          <span>
-                            <AudioLines size={14} /> ORIGINAL TRACK
-                          </span>
-                          <Waveform waveform={featured.analysis.waveform} />
-                          <span>
-                            {formatTime(Math.ceil(featured.duration))}
-                          </span>
-                        </div>
-                        <span className="hero-index">OFF / 001</span>
-                      </motion.section>
-                    )}
-                    <div className="library-tools">
-                      <div className="filter-tabs">
-                        <button
-                          className={filter === "all" ? "selected" : ""}
-                          onClick={() => setFilter("all")}
-                        >
-                          すべて <small>{songs.length}</small>
-                        </button>
-                        <button
-                          className={filter === "local" ? "selected" : ""}
-                          onClick={() => setFilter("local")}
-                        >
-                          追加した曲{" "}
-                          <small>
-                            {songs.filter((s) => !s.builtin).length}
-                          </small>
-                        </button>
-                      </div>
-                      <div className="search-wrap">
-                        <Search size={17} />
-                        <input
-                          placeholder="曲名・アーティストを検索"
-                          aria-label="曲を検索"
-                          role="combobox"
-                          aria-autocomplete="list"
-                          aria-expanded={searchFocus && suggestions.length > 0}
-                          aria-controls="song-suggestions"
-                          aria-activedescendant={
-                            suggestionIndex >= 0
-                              ? `suggestion-${suggestionIndex}`
-                              : undefined
+                        <Plus size={17} />
+                        曲を追加
+                      </button>
+                    </div>
+                    <div className="search-wrap">
+                      <Search size={18} />
+                      <input
+                        placeholder="曲名・アーティストで検索"
+                        aria-label="曲を検索"
+                        value={query}
+                        onChange={(e) => {
+                          setQuery(e.target.value);
+                          setSuggestionIndex(0);
+                        }}
+                        onKeyDown={(e) => {
+                          const options = visibleSongs.slice(0, 5);
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setSearchFocus(true);
+                            setSuggestionIndex((i) =>
+                              Math.min(options.length - 1, i + 1),
+                            );
                           }
-                          value={search}
-                          onFocus={() => setSearchFocus(true)}
-                          onBlur={() =>
-                            setTimeout(() => setSearchFocus(false), 160)
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setSuggestionIndex((i) => Math.max(0, i - 1));
                           }
-                          onChange={(e) => {
-                            setSearch(e.target.value);
-                            setSuggestionIndex(-1);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.nativeEvent.isComposing) return;
-                            if (e.key === "ArrowDown") {
-                              e.preventDefault();
-                              setSuggestionIndex((i) =>
-                                Math.min(suggestions.length - 1, i + 1),
-                              );
-                            }
-                            if (e.key === "ArrowUp") {
-                              e.preventDefault();
-                              setSuggestionIndex((i) => Math.max(0, i - 1));
-                            }
-                            if (e.key === "Escape") setSearchFocus(false);
-                            if (
-                              e.key === "Enter" &&
-                              suggestionIndex >= 0 &&
-                              suggestions[suggestionIndex]
-                            ) {
-                              setSelected(suggestions[suggestionIndex].id);
-                              setSearchFocus(false);
-                            }
-                          }}
-                        />
-                        {search && (
-                          <button
-                            aria-label="検索を消す"
-                            onClick={() => setSearch("")}
-                          >
-                            <X size={14} />
-                          </button>
-                        )}
-                        {searchFocus && suggestions.length > 0 && (
-                          <div
-                            className="suggestions glass"
-                            id="song-suggestions"
-                            role="listbox"
-                          >
-                            {suggestions.map((s, i) => (
+                          if (e.key === "Escape") setSearchFocus(false);
+                          if (e.key === "Enter" && options.length) {
+                            e.preventDefault();
+                            setSearchFocus(false);
+                            chooseSong(options[suggestionIndex] || options[0]);
+                          }
+                        }}
+                        onFocus={() => setSearchFocus(true)}
+                        onBlur={() =>
+                          setTimeout(() => setSearchFocus(false), 150)
+                        }
+                        role="combobox"
+                        aria-autocomplete="list"
+                        aria-controls="song-suggestions"
+                        aria-activedescendant={
+                          searchFocus && query
+                            ? "song-suggestion-" + suggestionIndex
+                            : undefined
+                        }
+                        aria-expanded={searchFocus && !!query}
+                      />
+                      {query && (
+                        <button
+                          aria-label="検索をクリア"
+                          onClick={() => setQuery("")}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                      {searchFocus && query && visibleSongs.length > 0 && (
+                        <ul
+                          id="song-suggestions"
+                          className="autocomplete glass"
+                          role="listbox"
+                        >
+                          {visibleSongs.slice(0, 5).map((s, i) => (
+                            <li
+                              key={s.id}
+                              id={"song-suggestion-" + i}
+                              role="option"
+                              aria-selected={i === suggestionIndex}
+                            >
                               <button
-                                key={s.id}
-                                id={`suggestion-${i}`}
-                                role="option"
-                                aria-selected={i === suggestionIndex}
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => {
-                                  setSelected(s.id);
+                                  setQuery(s.title);
                                   setSearchFocus(false);
                                 }}
                               >
-                                <Music2 size={15} />
-                                <span>
-                                  {s.title}
-                                  <small>{s.artist}</small>
-                                </span>
-                                <ArrowRight size={14} />
+                                {s.title}
+                                <small>{s.artist}</small>
                               </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        className="icon-button refresh-button"
-                        onClick={() => void refresh()}
-                        aria-label="ライブラリを更新"
-                        disabled={refreshing}
-                      >
-                        <RefreshCw
-                          size={17}
-                          className={refreshing ? "spin" : ""}
-                        />
-                      </button>
-                    </div>
-                    <div className="track-list">
-                      {filtered.map((s) => (
-                        <SongRow
-                          key={s.id}
-                          song={s}
-                          best={bestFor(s.id)}
-                          onSelect={() => setSelected(s.id)}
-                          onDelete={() => void removeSong(s)}
-                        />
-                      ))}
-                      {!filtered.length && (
-                        <div className="empty-state">
-                          <Music2 size={28} />
-                          <p>
-                            {search
-                              ? "曲が見つかりません"
-                              : "追加した曲がありません"}
-                          </p>
-                          <button
-                            className="text-button"
-                            onClick={() => {
-                              if (search) {
-                                setSearch("");
-                                setFilter("all");
-                              } else setSheet("upload");
-                            }}
-                          >
-                            {search ? "検索をリセット" : "曲を追加する"}
-                            <ArrowRight size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      className="upload-strip"
-                      onClick={() => {
-                        setError("");
-                        setSheet("upload");
-                      }}
-                    >
-                      <span className="upload-icon">
-                        <Plus size={24} />
-                      </span>
-                      <span>
-                        <strong>曲を追加</strong>
-                        <small>MP3 / M4A / WAV / MP4</small>
-                      </span>
-                      <ArrowUpIcon />
-                    </button>
-                    <section className="recent-section">
-                      <header>
-                        <h2>最近のプレイ</h2>
-                        <button
-                          className="text-button"
-                          onClick={() => setPage("records")}
-                        >
-                          すべて見る
-                          <ChevronRight size={15} />
-                        </button>
-                      </header>
-                      {visibleResults.length ? (
-                        <div className="recent-grid">
-                          {visibleResults.slice(0, 3).map((r) => (
-                            <RecordCard key={r.id} result={r} />
+                            </li>
                           ))}
-                        </div>
-                      ) : (
-                        <div className="no-record">
-                          <Activity size={20} />
-                          <span>まだプレイ記録がありません</span>
-                        </div>
+                        </ul>
                       )}
-                    </section>
-                  </>
-                ) : (
-                  <>
-                    <div className="page-heading">
-                      <div>
-                        <span className="eyebrow">YOUR RECORDS</span>
-                        <h1>
-                          成績
-                          <span>
-                            {String(visibleResults.length).padStart(2, "0")}
-                          </span>
-                        </h1>
-                      </div>
-                      <button
-                        className="add-button"
-                        onClick={() => void syncRecords()}
-                      >
-                        <Cloud size={17} />
-                        <span>同期</span>
-                      </button>
                     </div>
-                    <div className="summary-grid">
-                      {[
-                        ["プレイ回数", visibleResults.length],
-                        [
-                          "ベスト精度",
-                          visibleResults.length
-                            ? Math.max(
-                                ...visibleResults.map((r) => r.accuracy),
-                              ).toFixed(1) + "%"
-                            : "—",
-                        ],
-                        [
-                          "最大コンボ",
-                          visibleResults.length
-                            ? Math.max(...visibleResults.map((r) => r.maxCombo))
-                            : "—",
-                        ],
-                      ].map(([label, value]) => (
-                        <div className="summary-card glass" key={label}>
-                          <span>{label}</span>
-                          <strong>{value}</strong>
+                    <div className="song-list">
+                      {visibleSongs.map((s, i) => (
+                        <div className="swipe-row" key={s.id}>
+                          {!s.builtin && !s.groupId && (
+                            <button
+                              className="delete-song"
+                              aria-label={s.title + "を削除"}
+                              onClick={() => removeSong(s)}
+                            >
+                              <Trash2 size={18} />
+                              削除
+                            </button>
+                          )}
+                          <motion.div
+                            drag={!s.builtin && !s.groupId ? "x" : false}
+                            dragConstraints={{ left: -88, right: 0 }}
+                            dragElastic={0.06}
+                            className="song-row glass"
+                          >
+                            <button
+                              className="song-main"
+                              onClick={() => chooseSong(s)}
+                            >
+                              <div className={"song-art art-" + i}>
+                                {s.id === "play-pay" ? (
+                                  <img src="/art/play-pay.png" alt="" />
+                                ) : s.id === "glass-circuit" ? (
+                                  <Disc3 size={29} />
+                                ) : (
+                                  <Music2 size={25} />
+                                )}
+                              </div>
+                              <div className="song-description">
+                                <strong>{s.title}</strong>
+                                <span>
+                                  {s.artist || "MY AUDIO"}
+                                  {s.groupId && " · グループ共有"}
+                                </span>
+                                <div className="song-details">
+                                  <small>{time(s.duration)}</small>
+                                  <i />
+                                  <small>{s.bpm} BPM</small>
+                                  {s.analysis.version === 2 && (
+                                    <small className="analysis-chip">
+                                      発音解析 v2
+                                    </small>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="song-best">
+                                {best(s.id) > 0 ? (
+                                  <>
+                                    <small>BEST</small>
+                                    <strong>
+                                      {best(s.id).toLocaleString()}
+                                    </strong>
+                                  </>
+                                ) : (
+                                  <span>
+                                    PLAY
+                                    <ArrowRight size={14} />
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          </motion.div>
                         </div>
                       ))}
                     </div>
-                    {error && (
-                      <div className="error-banner" role="alert">
-                        {error}
+                    {!visibleSongs.length && (
+                      <div className="empty">
+                        <Search />
+                        <p>曲が見つかりません</p>
                       </div>
                     )}
-                    <div className="record-list">
-                      {visibleResults.map((r) => (
-                        <RecordCard key={r.id} result={r} />
-                      ))}
-                      {!visibleResults.length && (
-                        <div className="empty-state">
-                          <Trophy size={30} />
-                          <p>まだプレイ記録がありません</p>
-                          <button
-                            className="primary"
-                            onClick={() => setPage("library")}
-                          >
-                            ライブラリへ
-                            <ArrowRight size={16} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-                <footer className="footer">
-                  <Logo />
-                  <button onClick={() => setSheet("about")}>
-                    アプリについて
-                    <Info size={13} />
-                  </button>
-                  <span>© 2026 OFF MUSIC</span>
-                </footer>
-              </main>
-              <nav
-                className="mobile-nav glass"
-                aria-label="メインナビゲーション"
-              >
-                <button
-                  className={page === "library" ? "active" : ""}
-                  onClick={() => setPage("library")}
-                >
-                  <Library size={21} />
-                  <span>ライブラリ</span>
-                </button>
-                <button
-                  className="mobile-add"
-                  aria-label="曲を追加"
-                  onClick={() => {
-                    setError("");
-                    setSheet("upload");
-                  }}
-                >
-                  <Plus size={24} />
-                </button>
-                <button
-                  className={page === "records" ? "active" : ""}
-                  onClick={() => setPage("records")}
-                >
-                  <Activity size={21} />
-                  <span>成績</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setError("");
-                    setSheet("settings");
-                  }}
-                >
-                  <SlidersHorizontal size={21} />
-                  <span>設定</span>
-                </button>
-              </nav>
-            </div>
-          </>
-        )}
-        {game && (
-          <Game
-            {...game}
-            settings={settings}
-            onExit={() => setGame(null)}
-            onFinish={(r) => void finishGame(r)}
-          />
-        )}
-        {result && !game && (
-          <div className="result-screen">
-            <header>
-              <button
-                className="icon-button"
-                aria-label="ライブラリに戻る"
-                onClick={() => setResult(null)}
-              >
-                <ArrowLeft size={21} />
-              </button>
-              <Logo />
-              <button
-                className="icon-button"
-                aria-label="記録を出力"
-                onClick={() => {
-                  const url = URL.createObjectURL(
-                    new Blob([JSON.stringify(result, null, 2)], {
-                      type: "application/json",
-                    }),
-                  );
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = "off-music-result.json";
-                  a.click();
-                  URL.revokeObjectURL(url);
-                  notify("記録を書き出しました");
-                }}
-              >
-                <Download size={20} />
-              </button>
-            </header>
-            <motion.div
-              className="result-content"
-              initial={{ opacity: 0, y: 25 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <span className="eyebrow">SESSION COMPLETE</span>
-              <div className="result-rank">
-                {rank(result.accuracy)}
-                <span>✦</span>
-              </div>
-              <h1>{result.title}</h1>
-              <p>
-                {DIFFICULTIES.find((d) => d.id === result.difficulty)?.label} ·{" "}
-                {result.speed}×
-              </p>
-              <div className="result-score glass">
-                <span>SCORE</span>
-                <strong>{result.score.toLocaleString()}</strong>
-                <div>
-                  <span>
-                    精度 <b>{result.accuracy.toFixed(2)}%</b>
-                  </span>
-                  <i />
-                  <span>
-                    最大コンボ <b>{result.maxCombo}</b>
-                  </span>
-                </div>
-              </div>
-              <div className="judgement-grid">
-                {(["perfect", "great", "good", "miss"] as const).map((g) => (
-                  <div key={g}>
-                    <span>{g.toUpperCase()}</span>
-                    <strong>{result[g]}</strong>
+                  </section>
+                </>
+              ) : tab === "ranking" ? (
+                <Community
+                  groups={groups}
+                  selected={groupId}
+                  onSelect={setGroupId}
+                  onReload={loadGroups}
+                  notify={notify}
+                  songs={allSongs.filter(
+                    (s) => s.builtin || s.groupId === groupId,
+                  )}
+                  revision={revision}
+                  status={live}
+                  initialCode={invite === "reset-none" ? "" : invite}
+                  onLogin={!user ? () => setPanel("login") : undefined}
+                />
+              ) : (
+                <section className="profile-section">
+                  <div className="section-top">
+                    <h1>マイステージ</h1>
+                    <span className="eyebrow">
+                      {user ? "CLOUD SYNC" : "LOCAL GUEST"}
+                    </span>
                   </div>
-                ))}
-              </div>
-              {result.miss === 0 && (
-                <div className="full-combo">
-                  <Sparkles size={18} /> FULL COMBO
-                </div>
+                  <div className="progress-card glass">
+                    <Mascot index={1} />
+                    <div>
+                      <span className="eyebrow">{progress.title}</span>
+                      <h2>
+                        Lv.<strong>{progress.level}</strong>
+                      </h2>
+                      <div className="xp-meter">
+                        <i
+                          style={{
+                            width:
+                              ((progress.xp - progress.levelStartXp) /
+                                (progress.nextLevelXp -
+                                  progress.levelStartXp)) *
+                                100 +
+                              "%",
+                          }}
+                        />
+                      </div>
+                      <small>
+                        {progress.xp} / {progress.nextLevelXp} XP
+                      </small>
+                    </div>
+                  </div>
+                  <div className="profile-numbers">
+                    <div className="glass">
+                      <strong>{progress.plays}</strong>
+                      <span>PLAYS</span>
+                    </div>
+                    <div className="glass">
+                      <strong>{progress.uploads}</strong>
+                      <span>ADDED</span>
+                    </div>
+                    <div className="glass">
+                      <strong>{progress.maxCombo}</strong>
+                      <span>MAX COMBO</span>
+                    </div>
+                  </div>
+                  <h2>称号・バッジ</h2>
+                  <div className="badges">
+                    {progress.badges.length ? (
+                      progress.badges.map((b) => (
+                        <span className="badge glass" key={b}>
+                          <Trophy size={15} />
+                          {b}
+                        </span>
+                      ))
+                    ) : (
+                      <p className="muted">最初のプレイでバッジを獲得。</p>
+                    )}
+                  </div>
+                  <h2>ステージテーマ</h2>
+                  <div className="theme-options">
+                    {THEMES.map((t) => (
+                      <button
+                        className={
+                          "theme-choice glass " +
+                          t.id +
+                          (settings.theme === t.id ? " selected" : "")
+                        }
+                        key={t.id}
+                        disabled={!progress.themes.includes(t.id)}
+                        onClick={() =>
+                          saveSettings({ ...settings, theme: t.id })
+                        }
+                      >
+                        <i />
+                        <strong>{t.label}</strong>
+                        <small>
+                          {progress.themes.includes(t.id)
+                            ? settings.theme === t.id
+                              ? "使用中"
+                              : "解放済み"
+                            : `Lv.${t.level}で解放`}
+                        </small>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="notice">
+                    <strong>プレイで20〜80 XP · 曲の追加で30 XP</strong>
+                    <p>
+                      レベルが上がると称号とテーマが解放されます。スコア判定は全員共通です。曲追加XPは同一音源1回、ログイン時は1日5曲まで。
+                    </p>
+                  </div>
+                  <h2>最近の記録</h2>
+                  {localRecords.slice(0, 8).map((r) => (
+                    <div className="history-row glass" key={r.id}>
+                      <div>
+                        <strong>{r.title}</strong>
+                        <small>
+                          {
+                            DIFFICULTIES.find((d) => d.id === r.difficulty)
+                              ?.label
+                          }{" "}
+                          · {r.maxCombo} COMBO
+                        </small>
+                      </div>
+                      <span>{rank(r.accuracy)}</span>
+                      <strong>{r.score.toLocaleString()}</strong>
+                    </div>
+                  ))}
+                </section>
               )}
-              <button
-                className="primary"
-                onClick={() => {
-                  const s = songs.find((s) => s.id === result.songId);
-                  if (s) void startGame(s);
-                  else {
-                    setResult(null);
-                    notify("音源をもう一度追加してください");
-                  }
-                }}
-              >
-                <RefreshCw size={17} />
-                もう一度プレイ
-              </button>
-              {error && (
-                <div className="error-banner" role="alert">
-                  {error}
-                </div>
-              )}
-              <button className="secondary" onClick={() => setResult(null)}>
-                ライブラリに戻る
-                <ArrowRight size={17} />
-              </button>
-            </motion.div>
+              <footer className="app-footer">
+                <img src="/art/offscreen-logo.png" alt="OFFSCREEN" />
+                <button onClick={() => setPanel("privacy")}>
+                  プライバシー・音源について
+                </button>
+                <small>OFF MUSIC 2.0</small>
+              </footer>
+            </main>
+            <nav className="bottom-nav glass" aria-label="メインメニュー">
+              {(
+                [
+                  { id: "library", label: "曲", Icon: Music2 },
+                  { id: "ranking", label: "ランキング", Icon: Trophy },
+                  { id: "profile", label: "マイステージ", Icon: Sparkles },
+                ] as const
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  className={tab === item.id && !finished ? "active" : ""}
+                  onClick={() => {
+                    setTab(item.id);
+                    setFinished(null);
+                    scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  <item.Icon size={20} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
           </div>
         )}
         <AnimatePresence>
-          {selectedSong && !game && (
+          {panel && (
             <Sheet
-              key="song-detail"
-              title="プレイ設定"
+              title={
+                {
+                  settings: "サウンド・プレイ設定",
+                  calibrate: "タイミング補正",
+                  account: "アカウント",
+                  upload: "曲を追加",
+                  song: selected?.title || "曲",
+                  login: "プレイ方法を選択",
+                  privacy: "プライバシー・音源",
+                }[panel]
+              }
               onClose={() => {
-                if (!aiBusy && !busy) setSelected(null);
+                setPanel(null);
+                gateSong.current = null;
               }}
             >
-              <div className="detail-track">
-                <div className="track-art featured-art">
-                  <Disc3 size={34} />
-                </div>
-                <div>
-                  <h3>{selectedSong.title}</h3>
-                  <p>{selectedSong.artist}</p>
-                  <span>
-                    {formatTime(selectedSong.duration)} <b>·</b>{" "}
-                    {selectedSong.bpm} BPM {selectedSong.arrangement && " · AI"}
-                  </span>
-                </div>
-              </div>
-              <Waveform waveform={selectedSong.analysis.waveform} />
-              <div className="section-label">
-                <span>難易度</span>
-                <small>
-                  {
-                    createChart(
-                      selectedSong.analysis,
-                      difficulty,
-                      selectedSong.arrangement,
-                      selectedSong.bpm,
-                    ).length
-                  }{" "}
-                  NOTES
-                </small>
-              </div>
-              <div className="difficulty-grid">
-                {DIFFICULTIES.map((d) => (
-                  <button
-                    key={d.id}
-                    className={difficulty === d.id ? "chosen" : ""}
-                    onClick={() => setDifficulty(d.id)}
-                  >
-                    <strong>
-                      {d.level}
-                      <small> / 10</small>
-                    </strong>
-                    <span>{d.label}</span>
-                    <div className="difficulty-dots">
-                      {Array.from({ length: 10 }, (_, i) => (
-                        <i className={i < d.level ? "lit" : ""} key={i} />
-                      ))}
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <button
-                className="primary play-main"
-                disabled={!!busy || aiBusy}
-                onClick={() => void startGame(selectedSong)}
-              >
-                <Play size={19} fill="currentColor" />
-                プレイする
-                <ArrowRight size={19} />
-              </button>
-              <details className="arrange-details">
-                <summary>
-                  <SlidersHorizontal size={16} />
-                  譜面を調整
-                  <ChevronDown size={15} />
-                </summary>
-                <div className="bpm-control">
-                  <label htmlFor="bpm">BPM</label>
-                  <input
-                    id="bpm"
-                    type="number"
-                    min="40"
-                    max="240"
-                    step="0.1"
-                    value={bpmDraft}
-                    onChange={(e) => setBpmDraft(e.target.value)}
-                  />
-                  <button
-                    className="small-button"
-                    onClick={() => {
-                      const bpm = Number(bpmDraft);
-                      if (bpm >= 40 && bpm <= 240) {
-                        void saveSong({ ...selectedSong, bpm })
-                          .then(() => notify("BPMを保存しました"))
-                          .catch(() => setError("保存できませんでした"));
-                      } else setError("BPMは40〜240にしてください");
-                    }}
-                  >
-                    保存
-                  </button>
-                </div>
-                <p className="hint">
-                  自動解析したテンポは曲によってずれる場合があります。
-                </p>
-                <div className="ai-controls">
-                  <label htmlFor="ai-style">
-                    <Sparkles size={16} />
-                    AIアレンジ
-                  </label>
-                  <select
-                    id="ai-style"
-                    value={aiStyle}
-                    onChange={(e) => setAiStyle(e.target.value)}
-                  >
-                    <option value="balanced">バランス</option>
-                    <option value="flow">ゆったり</option>
-                    <option value="challenge">チャレンジ</option>
-                  </select>
-                  <button
-                    className="small-button"
-                    disabled={aiBusy}
-                    onClick={() => void arrange()}
-                  >
-                    {aiBusy ? (
-                      <LoaderCircle size={16} className="spin" />
-                    ) : (
-                      <Sparkles size={15} />
-                    )}
-                    生成
-                  </button>
-                </div>
-                <p className="hint">
-                  Workers
-                  AIにBPMと16区間の音の強さを送ります。音源は送信しません。Googleログイン後、1日5回まで。
-                </p>
-                {selectedSong.arrangement && (
-                  <button
-                    className="text-button"
-                    onClick={() =>
-                      void saveSong({
-                        ...selectedSong,
-                        arrangement: undefined,
-                      }).then(() => notify("元の譜面に戻しました"))
-                    }
-                  >
-                    元の譜面に戻す
-                  </button>
-                )}
-              </details>
-              <div className="detail-tip">
-                <span className="orange">●</span>低音{" "}
-                <span className="purple">◆</span>高音{" "}
-                <span>PC：F / J・D / K</span>
-              </div>
-              {error && (
-                <div className="error-banner" role="alert">
-                  {error}
-                </div>
-              )}
-              {!selectedSong.builtin && (
-                <button
-                  className="delete-text"
-                  onClick={() => void removeSong(selectedSong)}
-                >
-                  <Trash2 size={14} />
-                  この曲を削除
-                </button>
-              )}
-            </Sheet>
-          )}
-          {sheet === "upload" && (
-            <Sheet
-              key="upload"
-              title="曲を追加"
-              onClose={() => {
-                if (progress === null) setSheet(null);
-              }}
-            >
-              <div className="file-drop">
-                <input
-                  type="file"
-                  accept="audio/*,video/mp4,video/quicktime,.m4a,.mp3,.wav,.ogg,.mp4,.mov"
-                  ref={fileRef}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setFile(f);
-                      setTitle(f.name.replace(/\.[^.]+$/, "").slice(0, 140));
-                      setError("");
-                    }
-                  }}
-                  aria-label="音楽ファイル"
-                />
-                <button
-                  disabled={progress !== null}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <span>
-                    <Upload size={26} />
-                  </span>
-                  <strong>{file ? file.name : "ファイルを選択"}</strong>
-                  <small>
-                    {file
-                      ? (file.size / 1024 / 1024).toFixed(1) + " MB"
-                      : "MP3・M4A・WAV・MP4 / 最大50MB・10分"}
-                  </small>
-                </button>
-              </div>
-              <label className="field-label">
-                曲名
-                <input
-                  value={title}
-                  maxLength={140}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="曲名を入力"
-                  disabled={progress !== null}
-                />
-              </label>
-              <label className="field-label">
-                アーティスト <span>任意</span>
-                <input
-                  value={artist}
-                  maxLength={80}
-                  onChange={(e) => setArtist(e.target.value)}
-                  placeholder="アーティスト名"
-                  disabled={progress !== null}
-                />
-              </label>
-              <div className="privacy-line">
-                <ShieldCheck size={16} />
-                <p>音源と譜面は、この端末のブラウザに保存されます。</p>
-              </div>
-              {progress !== null && (
-                <div className="analysis-progress" role="status">
-                  <div>
-                    <AudioLines size={16} className="spin-slow" />
-                    <span>
-                      {progress === 0 ? "音源を読み込み中" : "譜面を生成中"}
-                    </span>
-                    <strong>{Math.round(progress * 100)}%</strong>
-                  </div>
-                  <i style={{ width: progress * 100 + "%" }} />
-                </div>
-              )}
-              {error && (
-                <div className="error-banner" role="alert">
-                  {error}
-                </div>
-              )}
-              <button
-                className="primary"
-                disabled={!file || !title.trim() || progress !== null}
-                onClick={() => void importSong()}
-              >
-                {progress !== null ? (
-                  <LoaderCircle size={18} className="spin" />
-                ) : (
-                  <Plus size={19} />
-                )}
-                取り込む
-              </button>
-            </Sheet>
-          )}
-          {sheet === "settings" && (
-            <Sheet key="settings" title="設定" onClose={() => setSheet(null)}>
-              <div className="settings-section">
-                <h3>
-                  <Headphones size={17} />
-                  サウンド
-                </h3>
-                {(
-                  [
-                    ["music", "曲の音量"],
-                    ["effects", "打音の音量"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <label className="range-field" key={key}>
-                    <span>
-                      {label}
-                      <strong>{Math.round(settings[key] * 100)}%</strong>
-                    </span>
+              {panel === "settings" && (
+                <div className="settings-content">
+                  <label className="range-label">
+                    楽曲音量{" "}
+                    <strong>{Math.round(settings.music * 100)}%</strong>
                     <input
+                      aria-label="楽曲音量"
                       type="range"
                       min="0"
                       max="1"
                       step="0.01"
-                      value={settings[key]}
+                      value={settings.music}
                       onChange={(e) =>
-                        void saveSettings({
-                          ...settings,
-                          [key]: Number(e.target.value),
-                        })
+                        setSettings({ ...settings, music: +e.target.value })
                       }
+                      onPointerUp={() => saveSettings(settings)}
                     />
                   </label>
-                ))}
-                <button
-                  className="text-button"
-                  onClick={() =>
-                    void unlockAudio().then(() =>
-                      playHit("pulse", settings.effects),
-                    )
-                  }
-                >
-                  <AudioLines size={16} />
-                  試し打ち
-                </button>
-              </div>
-              <div className="settings-section">
-                <h3>
-                  <Settings2 size={17} />
-                  演奏
-                </h3>
-                <label className="range-field">
-                  <span>
-                    タイミング調整
+                  <label className="range-label">
+                    タップ音・演出音{" "}
+                    <strong>{Math.round(settings.effects * 100)}%</strong>
+                    <input
+                      aria-label="タップ音量"
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      value={settings.effects}
+                      onChange={(e) =>
+                        setSettings({ ...settings, effects: +e.target.value })
+                      }
+                      onPointerUp={() => saveSettings(settings)}
+                    />
+                  </label>
+                  <label className="range-label">
+                    ロビーBGM{" "}
+                    <strong>
+                      {Math.round((settings.ambient ?? 0) * 100)}%
+                    </strong>
+                    <input
+                      aria-label="BGM音量"
+                      type="range"
+                      min="0"
+                      max="0.2"
+                      step="0.005"
+                      value={settings.ambient ?? 0}
+                      onChange={(e) =>
+                        setSettings({ ...settings, ambient: +e.target.value })
+                      }
+                      onPointerUp={() => saveSettings(settings)}
+                    />
+                  </label>
+                  <button
+                    className="setting-link"
+                    onClick={() => setPanel("calibrate")}
+                  >
+                    <Headphones size={19} />
+                    <span>
+                      <strong>音でタイミングを測る</strong>
+                      <small>
+                        本体スピーカー向け · 現在 {settings.offset} ms
+                      </small>
+                    </span>
+                    <ChevronRight size={18} />
+                  </button>
+                  <label className="range-label">
+                    判定補正{" "}
                     <strong>
                       {settings.offset > 0 ? "+" : ""}
                       {settings.offset} ms
                     </strong>
-                  </span>
-                  <input
-                    type="range"
-                    min="-250"
-                    max="250"
-                    step="5"
-                    value={settings.offset}
-                    onChange={(e) =>
-                      void saveSettings({
-                        ...settings,
-                        offset: Number(e.target.value),
-                      })
-                    }
-                  />
-                </label>
-                <p className="hint">
-                  プラスにすると遅い入力を補正します。Bluetoothでは調整が必要になることがあります。
-                </p>
-                <div className="setting-row">
-                  <span>再生速度</span>
-                  <div className="segmented">
-                    {[0.75, 1, 1.25].map((speed) => (
-                      <button
-                        className={settings.speed === speed ? "selected" : ""}
-                        key={speed}
-                        onClick={() =>
-                          void saveSettings({ ...settings, speed })
-                        }
-                      >
-                        {speed}×
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <Toggle
-                  label="振動"
-                  value={settings.vibration}
-                  onChange={(value) =>
-                    void saveSettings({ ...settings, vibration: value })
-                  }
-                />
-                <Toggle
-                  label="アニメーションを減らす"
-                  value={settings.reducedMotion}
-                  onChange={(value) =>
-                    void saveSettings({ ...settings, reducedMotion: value })
-                  }
-                />
-              </div>
-              {error && (
-                <div className="error-banner" role="alert">
-                  {error}
+                    <input
+                      aria-label="判定補正"
+                      type="range"
+                      min="-250"
+                      max="250"
+                      step="1"
+                      value={settings.offset}
+                      onChange={(e) =>
+                        setSettings({ ...settings, offset: +e.target.value })
+                      }
+                      onPointerUp={() => saveSettings(settings)}
+                    />
+                  </label>
+                  <small className="muted">
+                    LATEが続く場合は＋、EARLYが続く場合は−へ。音符は音声の出力時計に同期します。
+                  </small>
+                  <label>
+                    練習速度
+                    <select
+                      value={settings.speed}
+                      onChange={(e) =>
+                        saveSettings({ ...settings, speed: +e.target.value })
+                      }
+                    >
+                      <option value="0.75">0.75×</option>
+                      <option value="1">1.00× · ランキング対象</option>
+                      <option value="1.25">1.25×</option>
+                    </select>
+                  </label>
+                  <label className="switch-label">
+                    振動
+                    <input
+                      type="checkbox"
+                      checked={settings.vibration}
+                      onChange={(e) =>
+                        saveSettings({
+                          ...settings,
+                          vibration: e.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="switch-label">
+                    アニメーションを控えめに
+                    <input
+                      type="checkbox"
+                      checked={settings.reducedMotion}
+                      onChange={(e) =>
+                        saveSettings({
+                          ...settings,
+                          reducedMotion: e.target.checked,
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    className="primary wide"
+                    onClick={() => saveSettings(settings)}
+                  >
+                    設定を保存
+                  </button>
                 </div>
               )}
-              <button
-                className="primary"
-                onClick={async () => {
-                  try {
-                    await store.saveSettings(settings);
-                    if (user) await api("/me/settings", settings);
-                    notify(
-                      user ? "設定を保存・同期しました" : "設定を保存しました",
-                    );
-                    setSheet(null);
-                  } catch {
-                    setError(
-                      "同期できませんでした。設定はこの端末に保存されています",
-                    );
-                  }
-                }}
-              >
-                <Check size={18} />
-                保存する
-              </button>
-              {user && (
-                <button
-                  className="text-button centered"
-                  onClick={async () => {
-                    try {
-                      const r = await api<{ settings: Settings | null }>(
-                        "/me/settings",
-                      );
-                      if (r.settings) {
-                        await saveSettings(r.settings);
-                        notify("設定を読み込みました");
-                      } else notify("同期された設定はありません");
-                    } catch {
-                      setError("設定を取得できませんでした");
-                    }
+              {panel === "calibrate" && (
+                <Calibration
+                  onSave={(offset) => {
+                    saveSettings({
+                      ...settings,
+                      offset,
+                      calibratedAt: Date.now(),
+                    });
+                    setPanel("settings");
                   }}
-                >
-                  <Cloud size={15} />
-                  クラウドから設定を読み込む
-                </button>
+                />
               )}
-            </Sheet>
-          )}
-          {sheet === "account" && (
-            <Sheet
-              key="account"
-              title="アカウント"
-              onClose={() => setSheet(null)}
-            >
-              {user ? (
-                <>
-                  <div className="profile-card">
-                    <span className="profile-avatar">
-                      {user.name.slice(0, 1)}
-                    </span>
-                    <h3>{user.name}</h3>
+              {(panel === "account" || panel === "login") && (
+                <div className="account-content">
+                  {user ? (
+                    <>
+                      <div className="account-detail">
+                        <span className="avatar-large">
+                          {user.picture ? (
+                            <img
+                              src={user.picture}
+                              alt=""
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <Users />
+                          )}
+                        </span>
+                        <h3>{user.name}</h3>
+                        <p>
+                          Lv.{progress.level} · {progress.title}
+                        </p>
+                      </div>
+                      <div className="notice">
+                        <Cloud size={20} />
+                        <strong>プレイ・称号・設定をクラウドに保存</strong>
+                        <p>グループでは専用の表示名を使います。</p>
+                      </div>
+                      <button className="quiet wide" onClick={logout}>
+                        <LogOut size={16} />
+                        ログアウト
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="login-mascot">
+                        <Mascot index={2} />
+                      </div>
+                      <h3>記録をつないで、みんなで遊ぶ</h3>
+                      <ul className="login-benefits">
+                        <li>
+                          <Check size={16} />
+                          レベル・称号・自己ベストを保存
+                        </li>
+                        <li>
+                          <Check size={16} />
+                          招待グループのリアルタイムランキング
+                        </li>
+                        <li>
+                          <Check size={16} />
+                          グループへの曲共有とWorkers AIアレンジ
+                        </li>
+                      </ul>
+                      {clientId ? (
+                        <GoogleButton
+                          clientId={clientId}
+                          onLogin={login}
+                          onError={notify}
+                        />
+                      ) : (
+                        <p>
+                          Google認証を読み込めませんでした。再読み込みをお試しください。
+                        </p>
+                      )}
+                      <button
+                        className="quiet wide"
+                        onClick={() => {
+                          sessionStorage.setItem("off-guest", "1");
+                          setPanel(gateSong.current ? "song" : null);
+                          gateSong.current = null;
+                          notify("ゲストで遊べます · 記録はこの端末に保存");
+                        }}
+                      >
+                        ログインせずに遊ぶ <ArrowRight size={16} />
+                      </button>
+                      <small>
+                        ゲストでも収録曲のプレイ・曲追加・レベルアップが可能です。記録はこのブラウザだけに保存されます。
+                      </small>
+                    </>
+                  )}
+                </div>
+              )}
+              {panel === "upload" && (
+                <div className="upload-content">
+                  <p>
+                    音の立ち上がりを約3ms刻みで検出し、音域に合わせて3種類の音符を作ります。
+                  </p>
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="audio/*,video/mp4,video/quicktime"
+                    className="hidden-input"
+                    aria-label="音源ファイル"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        setUploadFile(f);
+                        setUploadTitle(f.name.replace(/\.[^.]+$/, ""));
+                      }
+                    }}
+                  />
+                  <button
+                    className="file-drop"
+                    onClick={() => fileInput.current?.click()}
+                  >
+                    <Upload size={28} />
+                    <strong>{uploadFile?.name || "音源を選ぶ"}</strong>
+                    <small>MP3・M4A・WAV・MP4 · 20MB / 10分まで</small>
+                  </button>
+                  <label>
+                    曲名
+                    <input
+                      maxLength={140}
+                      value={uploadTitle}
+                      onChange={(e) => setUploadTitle(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    アーティスト
+                    <input
+                      maxLength={80}
+                      value={uploadArtist}
+                      onChange={(e) => setUploadArtist(e.target.value)}
+                    />
+                  </label>
+                  <div className="notice">
+                    <strong>音源はこの端末に保存されます</strong>
                     <p>
-                      <CheckCircle2 size={14} />
-                      Googleでログイン済み
+                      グループ共有を選ぶまで音源ファイルはアップロードされません。
                     </p>
                   </div>
                   <button
-                    className="primary"
-                    onClick={() => void syncRecords()}
+                    className="primary wide"
+                    disabled={!uploadFile || busy}
+                    onClick={upload}
                   >
-                    <Cloud size={18} />
-                    端末の記録を同期
+                    <AudioLines size={18} />
+                    解析して追加
                   </button>
-                  <p className="hint centered">
-                    音源はこの端末にのみ保存されます。
-                  </p>
-                  <button
-                    className="secondary"
-                    onClick={async () => {
-                      try {
-                        await api("/auth/logout", {});
-                        setUser(null);
-                        setCloudResults([]);
-                        window.google?.accounts.id.disableAutoSelect();
-                        notify("ログアウトしました");
-                        setSheet(null);
-                      } catch {
-                        setError("ログアウトできませんでした");
-                      }
-                    }}
-                  >
-                    <LogOut size={17} />
-                    ログアウト
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="login-illustration">
-                    <Cloud size={42} strokeWidth={1.2} />
-                    <div className="tiny-circle">●</div>
-                    <div className="tiny-diamond">◆</div>
-                  </div>
-                  <h3 className="centered">プレイ記録を同期</h3>
-                  <p className="login-description">
-                    Googleアカウントでログインすると、成績と設定の同期、AIアレンジが使えます。
-                  </p>
-                  <div className="google-button" ref={googleRef} />
-                  {!googleClientId && (
-                    <div className="error-banner">
-                      Google認証は設定中です。端末への保存とプレイは利用できます。
-                    </div>
-                  )}
-                  <p className="hint centered">
-                    ログインせずにプレイできます。
-                  </p>
-                </>
+                </div>
               )}
-              {error && (
-                <div className="error-banner" role="alert">
-                  {error}
+              {panel === "song" && selected && (
+                <div className="song-sheet">
+                  <div className="song-sheet-hero">
+                    <div className="song-disc">
+                      <Disc3 size={56} />
+                    </div>
+                    <div>
+                      <span className="eyebrow">
+                        {selected.groupId
+                          ? "GROUP TRACK"
+                          : selected.builtin
+                            ? "OFF MUSIC ORIGINAL"
+                            : "MY AUDIO"}
+                      </span>
+                      <h3>{selected.title}</h3>
+                      <p>{selected.artist}</p>
+                      <small>
+                        {time(selected.duration)} · {selected.bpm} BPM ·{" "}
+                        {selected.analysis.peaks.length} 発音候補
+                      </small>
+                    </div>
+                  </div>
+                  <Wave analysis={selected.analysis} />
+                  <div className="difficulty-options">
+                    {DIFFICULTIES.map((d) => (
+                      <button
+                        className={difficulty === d.id ? "active" : ""}
+                        key={d.id}
+                        onClick={() => setDifficulty(d.id)}
+                      >
+                        <small>{d.label}</small>
+                        <strong>{d.level}</strong>
+                        <span>
+                          {selected
+                            ? createChart(
+                                selected.analysis,
+                                d.id,
+                                selected.arrangement,
+                              ).length
+                            : 0}
+                          音符
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="pad-legend">
+                    {HIT_KINDS.map((k) => (
+                      <span key={k} style={{ color: HIT_STYLE[k].color }}>
+                        {HIT_STYLE[k].symbol} {HIT_STYLE[k].label}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="play-summary">
+                    <span>
+                      {chart.length} NOTES · {settings.speed}×
+                    </span>
+                    <span>
+                      {selected.arrangement || settings.speed !== 1
+                        ? "練習モード"
+                        : groupId &&
+                            (selected.builtin || selected.groupId === groupId)
+                          ? "グループ順位に反映"
+                          : "個人記録"}
+                    </span>
+                  </div>
+                  <button
+                    className="primary play-button wide"
+                    disabled={busy}
+                    onClick={() => play()}
+                  >
+                    <Play size={20} fill="currentColor" />
+                    プレイ <ArrowRight size={18} />
+                  </button>
+                  <p className="landscape-hint">
+                    スマホを横にしてプレイ · 低音 F/J · 中音 G/H · 高音 D/K
+                  </p>
+                  {user && groups.length > 0 && (
+                    <label>
+                      記録するグループ
+                      <select
+                        value={groupId}
+                        onChange={(e) => setGroupId(e.target.value)}
+                      >
+                        <option value="">個人のみ</option>
+                        {groups.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <details className="advanced">
+                    <summary>
+                      <Sparkles size={16} />
+                      AIアレンジ・共有
+                    </summary>
+                    <p>
+                      Workers
+                      AIが音符の密度を調整します。発音時刻は動かしません。アレンジは練習として記録されます。
+                    </p>
+                    <div className="form-row">
+                      <select
+                        aria-label="AIスタイル"
+                        value={aiStyle}
+                        onChange={(e) =>
+                          setAiStyle(e.target.value as typeof aiStyle)
+                        }
+                      >
+                        <option value="balanced">バランス</option>
+                        <option value="flow">ゆったり</option>
+                        <option value="challenge">チャレンジ</option>
+                      </select>
+                      <button
+                        className="quiet"
+                        disabled={busy}
+                        onClick={arrange}
+                      >
+                        <Sparkles size={16} />
+                        AIでアレンジ
+                      </button>
+                    </div>
+                    {selected.arrangement && (
+                      <button
+                        className="quiet"
+                        onClick={() =>
+                          setSelected({ ...selected, arrangement: undefined })
+                        }
+                      >
+                        標準譜面に戻す
+                      </button>
+                    )}
+                    {!selected.builtin &&
+                      !selected.groupId &&
+                      user &&
+                      groups.length > 0 && (
+                        <div className="share-song">
+                          <h4>グループに音源を共有</h4>
+                          <select
+                            aria-label="音源の共有先"
+                            value={shareGroup}
+                            onChange={(e) => setShareGroup(e.target.value)}
+                          >
+                            <option value="">共有先を選択</option>
+                            {groups.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name}
+                              </option>
+                            ))}
+                          </select>
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={rights}
+                              onChange={(e) => setRights(e.target.checked)}
+                            />
+                            この音源をグループ内で配信・再配布できる権利があります
+                          </label>
+                          <button
+                            className="quiet wide"
+                            disabled={busy || !shareGroup || !rights}
+                            onClick={shareSong}
+                          >
+                            <Share2 size={16} />
+                            音源と譜面を共有
+                          </button>
+                          <small>
+                            音源はCloudflareに保存され、参加者だけが再生できます。
+                          </small>
+                        </div>
+                      )}
+                  </details>
+                </div>
+              )}
+              {panel === "privacy" && (
+                <div className="privacy-content">
+                  <h3>データの保存先</h3>
+                  <p>
+                    ゲストの曲・スコア・設定は端末のIndexedDBに保存されます。Googleログイン後は基本プロフィール、設定、プレイ結果、成長記録をCloudflare
+                    D1へ保存します。
+                  </p>
+                  <p>
+                    グループへの曲共有を選んだ音源はCloudflare
+                    R2に保存され、Googleログイン済みの参加者だけが再生できます。グループ内では表示名・レベル・スコアを共有します。招待リンクは信頼できる人だけに渡してください。
+                  </p>
+                  <p>
+                    ランキングは標準譜面・1倍速の打鍵記録をサーバーで再判定します。
+                  </p>
+                  <h3>音源・キャラクター</h3>
+                  <p>
+                    「Play &
+                    Pay」とOFFSCREEN画像は権利者の許可のもとに使用しています。「Glass
+                    Circuit」はこのゲーム用にSunoの既存Proプランで生成したインスト曲です。画像・音源はソースコードのMITライセンスに含まれません。
+                  </p>
+                  <p>
+                    タップ音・演出音は独自の合成音です。他社のロゴ、音源、キャラクターやゲーム画面は使用していません。
+                  </p>
+                  <h3>技術・問い合わせ</h3>
+                  <p>
+                    <a
+                      href="https://github.com/fuuuuuuma/off-music"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      ソースコードと技術選定・調査記録
+                    </a>
+                  </p>
                 </div>
               )}
             </Sheet>
           )}
-          {sheet === "about" && (
-            <Sheet key="about" title="OFF MUSIC" onClose={() => setSheet(null)}>
-              <div className="about-logo">
-                <Logo large />
-              </div>
-              <p className="about-text">
-                音源を取り込み、丸は低音、菱形は高音でプレイ。曲と譜面は端末に保存され、Googleログイン時は成績と設定を同期できます。
-              </p>
-              <div className="about-rules">
-                <h3>判定</h3>
-                <p>PERFECT ±45ms / GREAT ±100ms / GOOD ±160ms</p>
-                <h3>プライバシー</h3>
-                <p>
-                  音源はアップロードしません。Googleの識別ID・名前とプレイ記録・設定をCloudflareに保存します。AIにはBPM、曲の長さ、16区間の音の強さだけを送ります。セッションは7日間有効です。クラウドの記録は最新300件です。
-                </p>
-                <h3>音源について</h3>
-                <p>
-                  初期収録：MAKE SOMETHING. /
-                  OFFSKU。提供者の公開許可を確認済み。追加する曲は、利用する権利のある音源を選んでください。
-                </p>
-                <h3>データ</h3>
-                <p>
-                  ブラウザのデータ消去で端末の音源は消えます。元の音源ファイルを保管してください。別の端末で遊ぶ場合は音源を追加し直します。
-                </p>
-                <a
-                  href="https://github.com/fuuuuuuma/off-music"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  ソースコード
-                  <ArrowRight size={14} />
-                </a>
-              </div>
-              <p className="hint">
-                <a href="/privacy.html" target="_blank" rel="noreferrer">
-                  プライバシー
-                </a>{" "}
-                ·{" "}
-                <a href="/terms.html" target="_blank" rel="noreferrer">
-                  利用について
-                </a>
-              </p>
-              <small className="version">VERSION 1.0.0</small>
-            </Sheet>
-          )}
         </AnimatePresence>
+        {busy && (
+          <div className="busy-overlay" role="status">
+            <div className="glass">
+              <LoaderCircle size={30} className="spin" />
+              <strong>{busyText}</strong>
+              {uploadProgress > 0 && (
+                <progress value={uploadProgress} max="1" />
+              )}
+            </div>
+          </div>
+        )}
         <AnimatePresence>
           {toast && (
             <motion.div
               className="toast glass"
               role="status"
-              aria-live="polite"
               key={toast.text}
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12 }}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 10, opacity: 0 }}
             >
-              <CheckCircle2 size={18} />
+              <Check size={17} />
               <span>{toast.text}</span>
-              {toast.action && (
+              {toast.undo && (
                 <button
                   onClick={() => {
-                    toast.action?.();
+                    toast.undo?.();
                     setToast(null);
                   }}
                 >
-                  {toast.actionLabel}
+                  元に戻す
                 </button>
               )}
             </motion.div>
           )}
         </AnimatePresence>
-        <AnimatePresence>
-          {intro && (
-            <motion.div
-              className="intro"
-              key="intro"
-              initial={{ opacity: 1 }}
-              exit={{ opacity: 0, filter: "blur(12px)" }}
-              transition={{ duration: 0.55 }}
-            >
-              <div className="intro-halo" />
-              <div className="intro-ring ring-one" />
-              <div className="intro-ring ring-two" />
-              <motion.div
-                initial={{
-                  opacity: 0,
-                  y: 28,
-                  filter: "blur(18px)",
-                  scale: 0.9,
-                }}
-                animate={{ opacity: 1, y: 0, filter: "blur(0px)", scale: 1 }}
-                transition={{ duration: 0.95, ease: [0.16, 1, 0.3, 1] }}
-              >
-                <Logo large />
-              </motion.div>
-              <motion.span
-                className="intro-caption"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}
-              >
-                <span /> MUSIC OFF
-              </motion.span>
-              <button className="intro-skip" onClick={() => setIntro(false)}>
-                スキップ
-                <ArrowRight size={15} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        {booting && !intro && <Skeleton />}
-        {busy && (
-          <div className="busy-overlay">
-            <Skeleton />
-            <div className="busy-label" role="status">
-              <LoaderCircle size={22} className="spin" />
-              {busy}
-            </div>
-          </div>
-        )}
       </div>
     </MotionConfig>
-  );
-}
-function ArrowUpIcon() {
-  return <Upload size={18} className="strip-arrow" />;
-}
-function Toggle({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <div className="setting-row">
-      <span>{label}</span>
-      <button
-        className={"toggle " + (value ? "on" : "")}
-        role="switch"
-        aria-checked={value}
-        aria-label={label}
-        onClick={() => onChange(!value)}
-      >
-        <i />
-      </button>
-    </div>
-  );
-}
-function RecordCard({ result: r }: { result: Result }) {
-  return (
-    <article className="record-card glass">
-      <span className="record-rank">{rank(r.accuracy)}</span>
-      <div>
-        <h3>{r.title}</h3>
-        <p>
-          {DIFFICULTIES.find((d) => d.id === r.difficulty)?.label} · {r.speed}×{" "}
-          <i>·</i>{" "}
-          {new Date(r.createdAt).toLocaleDateString("ja-JP", {
-            month: "numeric",
-            day: "numeric",
-          })}
-        </p>
-        <div className="record-numbers">
-          <strong>{r.score.toLocaleString()}</strong>
-          <span>
-            {r.accuracy.toFixed(1)}% {r.synced && <Cloud size={12} />}
-          </span>
-        </div>
-      </div>
-    </article>
   );
 }

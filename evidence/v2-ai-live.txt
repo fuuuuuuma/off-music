@@ -1,0 +1,123 @@
+- banner:
+  - button "曲一覧":
+    - text: "OFF"
+    - generic: ◌
+    - text: MUSIC
+  - button "BGMをミュート":
+  - button "Lv.1":
+    - generic: Lv.1
+  - button "設定":
+  - button "アカウント"
+- main:
+  - text: OFFSCREEN
+  - heading "OFF MUSIC." [level=1]:
+    - text: "OFF"
+    - emphasis: MUSIC.
+  - generic: 3 PADS
+  - text: LANDSCAPE
+  - button "Play & Pay":
+    - text: Play & Pay
+  - generic: 01 — PLAY & PAY
+  - generic: OFFSCREEN
+  - heading "ライブラリ 04" [level=2]
+  - button "曲を追加":
+    - text: 曲を追加
+  - combobox "曲を検索"
+  - button "Play & Pay OFFSKU 2:13 144.3 BPM 発音解析 v2 BEST 4,720":
+    - strong: Play & Pay
+    - text: OFFSKU
+    - generic: 2:13
+    - generic: 144.3 BPM
+    - generic: 発音解析 v2
+    - generic: BEST
+    - strong: 4,720
+  - button "Glass Circuit OFF MUSIC · Suno 0:54 123 BPM 発音解析 v2 BEST 155,446":
+    - strong: Glass Circuit
+    - text: OFF MUSIC · Suno
+    - generic: 0:54
+    - generic: 123 BPM
+    - generic: 発音解析 v2
+    - generic: BEST
+    - strong: 155,446
+  - button "[TEST] 3 PADS · 120を削除":
+    - text: 削除
+  - button "[TEST] 3 PADS · 120 OFF MUSIC QA 0:08 120 BPM 発音解析 v2 PLAY":
+    - strong: "[TEST] 3 PADS · 120"
+    - text: OFF MUSIC QA
+    - generic: 0:08
+    - generic: 120 BPM
+    - generic: 発音解析 v2
+    - text: PLAY
+  - button "[TEST] 3 PADS · 120 OFF MUSIC QA · グループ共有 0:08 120 BPM 発音解析 v2 PLAY":
+    - strong: "[TEST] 3 PADS · 120"
+    - generic: OFF MUSIC QA · グループ共有
+    - generic: 0:08
+    - generic: 120 BPM
+    - generic: 発音解析 v2
+    - text: PLAY
+  - img "OFFSCREEN"
+  - button "プライバシー・音源について"
+  - generic: OFF MUSIC 2.0
+- navigation "メインメニュー":
+  - button "曲":
+    - generic: 曲
+  - button "ランキング":
+    - generic: ランキング
+  - button "マイステージ":
+    - generic: マイステージ
+- button "パネルを閉じる"
+- dialog "[TEST] 3 PADS · 120":
+  - banner:
+    - heading "[TEST] 3 PADS · 120" [level=2]
+    - button "閉じる":
+  - text: MY AUDIO
+  - heading "[TEST] 3 PADS · 120" [level=3]
+  - paragraph: OFF MUSIC QA
+  - generic: 0:08 · 120 BPM · 12 発音候補
+  - button "かんたん 2 11音符":
+    - generic: かんたん
+    - strong: "2"
+    - generic: 11音符
+  - button "ふつう 4 12音符":
+    - generic: ふつう
+    - strong: "4"
+    - generic: 12音符
+  - button "むずかしい 7 12音符":
+    - generic: むずかしい
+    - strong: "7"
+    - generic: 12音符
+  - button "エキスパート 9 12音符":
+    - generic: エキスパート
+    - strong: "9"
+    - generic: 12音符
+  - generic: ● 低音
+  - generic: ▲ 中音
+  - generic: ◆ 高音
+  - generic: 11 NOTES · 1×
+  - generic: 練習モード
+  - button "プレイ":
+    - text: プレイ
+  - paragraph: スマホを横にしてプレイ · 低音 F/J · 中音 G/H · 高音 D/K
+  - text: 記録するグループ
+  - combobox "記録するグループ":
+    - option "個人のみ"
+    - option "OFFSCREEN" [selected]
+  - generic "AIアレンジ・共有":
+    - text: AIアレンジ・共有
+  - paragraph: Workers AIが音符の密度を調整します。発音時刻は動かしません。アレンジは練習として記録されます。
+  - combobox "AIスタイル":
+    - option "バランス"
+    - option "ゆったり" [selected]
+    - option "チャレンジ"
+  - button "AIでアレンジ":
+    - text: AIでアレンジ
+  - button "標準譜面に戻す"
+  - heading "グループに音源を共有" [level=4]
+  - combobox "音源の共有先":
+    - option "共有先を選択"
+    - option "OFFSCREEN" [selected]
+  - checkbox "この音源をグループ内で配信・再配布できる権利があります"
+  - text: この音源をグループ内で配信・再配布できる権利があります
+  - button "音源と譜面を共有" [disabled]:
+    - text: 音源と譜面を共有
+  - generic: 音源はCloudflareに保存され、参加者だけが再生できます。

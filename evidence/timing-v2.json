@@ -1,0 +1,209 @@
+{
+  "method": "three-band-energy-flux-backtracked-3ms",
+  "sampleRate": 22050,
+  "bpm": 120,
+  "events": 28,
+  "detected": 28,
+  "medianAbsoluteErrorMs": 1.4,
+  "p95AbsoluteErrorMs": 2.7,
+  "maxAbsoluteErrorMs": 2.9,
+  "correctKinds": 28,
+  "errors": [
+    {
+      "expected": 0.6,
+      "actual": 0.5986,
+      "errorMs": -1.4,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 1.1,
+      "actual": 1.0985,
+      "errorMs": -1.5,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 1.6,
+      "actual": 1.5984,
+      "errorMs": -1.6,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 2.1,
+      "actual": 2.1012,
+      "errorMs": 1.2,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 2.6,
+      "actual": 2.5981,
+      "errorMs": -1.9,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 3.1,
+      "actual": 3.098,
+      "errorMs": -2,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 3.6,
+      "actual": 3.6008,
+      "errorMs": 0.8,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 4.1,
+      "actual": 4.0977,
+      "errorMs": -2.3,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 4.6,
+      "actual": 4.5976,
+      "errorMs": -2.4,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 5.1,
+      "actual": 5.1004,
+      "errorMs": 0.4,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 5.6,
+      "actual": 5.5973,
+      "errorMs": -2.7,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 6.1,
+      "actual": 6.0971,
+      "errorMs": -2.9,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 6.6,
+      "actual": 6.6,
+      "errorMs": 0,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 7.1,
+      "actual": 7.0999,
+      "errorMs": -0.1,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 7.6,
+      "actual": 7.5997,
+      "errorMs": -0.3,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 8.1,
+      "actual": 8.0996,
+      "errorMs": -0.4,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 8.6,
+      "actual": 8.5995,
+      "errorMs": -0.5,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 9.1,
+      "actual": 9.0993,
+      "errorMs": -0.7,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 9.6,
+      "actual": 9.5992,
+      "errorMs": -0.8,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 10.1,
+      "actual": 10.099,
+      "errorMs": -1,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 10.6,
+      "actual": 10.5989,
+      "errorMs": -1.1,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 11.1,
+      "actual": 11.0988,
+      "errorMs": -1.2,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 11.6,
+      "actual": 11.5986,
+      "errorMs": -1.4,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 12.1,
+      "actual": 12.0985,
+      "errorMs": -1.5,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 12.6,
+      "actual": 12.5984,
+      "errorMs": -1.6,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    },
+    {
+      "expected": 13.1,
+      "actual": 13.0982,
+      "errorMs": -1.8,
+      "expectedKind": "snap",
+      "actualKind": "snap"
+    },
+    {
+      "expected": 13.6,
+      "actual": 13.5981,
+      "errorMs": -1.9,
+      "expectedKind": "edge",
+      "actualKind": "edge"
+    },
+    {
+      "expected": 14.1,
+      "actual": 14.101,
+      "errorMs": 1,
+      "expectedKind": "pulse",
+      "actualKind": "pulse"
+    }
+  ]
+}

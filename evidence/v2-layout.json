@@ -1,0 +1,194 @@
+[
+  {
+    "requested": {
+      "width": 667,
+      "height": 375
+    },
+    "controls": [
+      {
+        "bottom": 57,
+        "name": "game-hud",
+        "right": 649,
+        "x": 18,
+        "y": 9
+      },
+      {
+        "bottom": 268.859375,
+        "name": "highway",
+        "right": 649,
+        "x": 18,
+        "y": 159.40625
+      },
+      {
+        "bottom": 351,
+        "name": "低音を叩く",
+        "right": 222.328125,
+        "x": 24,
+        "y": 274.859375
+      },
+      {
+        "bottom": 351,
+        "name": "中音を叩く",
+        "right": 432.6640625,
+        "x": 234.328125,
+        "y": 274.859375
+      },
+      {
+        "bottom": 351,
+        "name": "高音を叩く",
+        "right": 642.9921875,
+        "x": 444.6640625,
+        "y": 274.859375
+      }
+    ],
+    "gameScroll": 0,
+    "height": 375,
+    "scrollHeight": 375,
+    "scrollWidth": 667,
+    "width": 667
+  },
+  {
+    "requested": {
+      "width": 740,
+      "height": 360
+    },
+    "controls": [
+      {
+        "bottom": 57,
+        "name": "game-hud",
+        "right": 722,
+        "x": 18,
+        "y": 9
+      },
+      {
+        "bottom": 258,
+        "name": "highway",
+        "right": 722,
+        "x": 18,
+        "y": 154.5
+      },
+      {
+        "bottom": 336,
+        "name": "低音を叩く",
+        "right": 246.6640625,
+        "x": 24,
+        "y": 264
+      },
+      {
+        "bottom": 336,
+        "name": "中音を叩く",
+        "right": 481.328125,
+        "x": 258.6640625,
+        "y": 264
+      },
+      {
+        "bottom": 336,
+        "name": "高音を叩く",
+        "right": 716,
+        "x": 493.328125,
+        "y": 264
+      }
+    ],
+    "gameScroll": 0,
+    "height": 360,
+    "scrollHeight": 360,
+    "scrollWidth": 740,
+    "width": 740
+  },
+  {
+    "requested": {
+      "width": 844,
+      "height": 390
+    },
+    "controls": [
+      {
+        "bottom": 57,
+        "name": "game-hud",
+        "right": 826,
+        "x": 18,
+        "y": 9
+      },
+      {
+        "bottom": 279.71875,
+        "name": "highway",
+        "right": 826,
+        "x": 18,
+        "y": 164.3203125
+      },
+      {
+        "bottom": 366,
+        "name": "低音を叩く",
+        "right": 281.328125,
+        "x": 24,
+        "y": 285.71875
+      },
+      {
+        "bottom": 366,
+        "name": "中音を叩く",
+        "right": 550.6640625,
+        "x": 293.328125,
+        "y": 285.71875
+      },
+      {
+        "bottom": 366,
+        "name": "高音を叩く",
+        "right": 820,
+        "x": 562.6640625,
+        "y": 285.71875
+      }
+    ],
+    "gameScroll": 0,
+    "height": 390,
+    "scrollHeight": 390,
+    "scrollWidth": 844,
+    "width": 844
+  },
+  {
+    "requested": {
+      "width": 932,
+      "height": 430
+    },
+    "controls": [
+      {
+        "bottom": 57,
+        "name": "game-hud",
+        "right": 914,
+        "x": 18,
+        "y": 9
+      },
+      {
+        "bottom": 308.6875,
+        "name": "highway",
+        "right": 914,
+        "x": 18,
+        "y": 177.4296875
+      },
+      {
+        "bottom": 406,
+        "name": "低音を叩く",
+        "right": 310.6640625,
+        "x": 24,
+        "y": 314.6875
+      },
+      {
+        "bottom": 406,
+        "name": "中音を叩く",
+        "right": 609.328125,
+        "x": 322.6640625,
+        "y": 314.6875
+      },
+      {
+        "bottom": 406,
+        "name": "高音を叩く",
+        "right": 907.9921875,
+        "x": 621.328125,
+        "y": 314.6875
+      }
+    ],
+    "gameScroll": 0,
+    "height": 430,
+    "scrollHeight": 430,
+    "scrollWidth": 932,
+    "width": 932
+  }
+]

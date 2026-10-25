@@ -1,0 +1,48 @@
+- banner:
+  - button "曲一覧":
+    - text: "OFF"
+    - generic: ◌
+    - text: MUSIC
+  - button "BGMをミュート":
+  - button "Lv.2":
+    - generic: Lv.2
+  - button "設定":
+  - button "アカウント"
+- main:
+  - button "曲一覧":
+    - text: 曲一覧
+  - text: Play & Pay
+  - heading "SESSION FINISH" [level=1]
+  - generic: D
+  - text: SCORE
+  - strong: 22,746
+  - strong: 2.27%
+  - generic: ACCURACY
+  - strong: "20"
+  - generic: MAX COMBO
+  - strong: "+21"
+  - generic: XP
+  - generic: PERFECT
+  - strong: "2"
+  - generic: GREAT
+  - strong: "8"
+  - generic: GOOD
+  - strong: "10"
+  - generic: MISS
+  - strong: "468"
+  - paragraph: EARLY 20 · LATE 0 · 平均 -96.8 ms
+  - generic: ✦ LEVEL UP · Lv.2
+  - text: ランキング更新済み
+  - button "もう一度":
+    - text: もう一度
+  - button "ランキングを見る"
+  - img "OFFSCREEN"
+  - button "プライバシー・音源について"
+  - generic: OFF MUSIC 2.0
+- navigation "メインメニュー":
+  - button "曲":
+    - generic: 曲
+  - button "ランキング":
+    - generic: ランキング
+  - button "マイステージ":
+    - generic: マイステージ

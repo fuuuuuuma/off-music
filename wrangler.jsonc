@@ -18,6 +18,9 @@
       "migrations_dir": "migrations",
     },
   ],
+  "r2_buckets": [{"binding":"MEDIA","bucket_name":"off-music-media"}],
+  "durable_objects": {"bindings":[{"name":"ROOMS","class_name":"LeaderboardRoom"}]},
+  "migrations": [{"tag":"v2","new_sqlite_classes":["LeaderboardRoom"]}],
   "ai": { "binding": "AI", "remote": true },
   "vars": {
     "GOOGLE_CLIENT_ID": "331580719508-1taviu0pse0qu4djjv85irsp9c61algm.apps.googleusercontent.com",

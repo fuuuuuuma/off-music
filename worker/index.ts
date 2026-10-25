@@ -10,15 +10,9 @@ import {
   settingsSchema,
 } from "./schema.ts";
 import { calculateScore } from "../src/lib/chart.ts";
-type Env = {
-  DB: D1Database;
-  AI: Ai;
-  ASSETS: Fetcher;
-  GOOGLE_CLIENT_ID: string;
-  AI_MODEL: string;
-  APP_ORIGIN: string;
-};
-type Account = { id: string; name: string; picture?: string };
+import type { Env, Account } from "./env.ts";
+import social from "./social.ts";
+export { LeaderboardRoom } from "./room.ts";
 const app = new Hono<{ Bindings: Env; Variables: { user: Account } }>();
 const googleKeys = createRemoteJWKSet(
   new URL("https://www.googleapis.com/oauth2/v3/certs"),
@@ -33,13 +27,21 @@ export async function hash(value: string) {
 }
 const secure = (url: string) => new URL(url).protocol === "https:";
 const random = () => crypto.randomUUID() + crypto.randomUUID();
-app.use(
-  "/api/*",
-  bodyLimit({
-    maxSize: 24576,
+app.use("/api/*", async (c, next) => {
+  const path = c.req.path;
+  const maxSize =
+    c.req.method === "PUT" && path.endsWith("/audio")
+      ? 20971520
+      : path.match(/\/groups\/[^/]+\/songs$/)
+        ? 786432
+        : path.includes("/plays")
+          ? 180000
+          : 24576;
+  return bodyLimit({
+    maxSize,
     onError: (c) => c.json({ error: "データが大きすぎます" }, 413),
-  }),
-);
+  })(c, next);
+});
 app.use("/api/*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   c.header("X-Content-Type-Options", "nosniff");
@@ -53,7 +55,12 @@ app.use("/api/*", async (c, next) => {
       !origin ||
       !origins.includes(origin) ||
       c.req.header("X-Off-Music") !== "1" ||
-      !c.req.header("Content-Type")?.startsWith("application/json")
+      !(
+        c.req.header("Content-Type")?.startsWith("application/json") ||
+        (c.req.method === "PUT" &&
+          c.req.path.endsWith("/audio") &&
+          c.req.header("Content-Type") === "application/octet-stream")
+      )
     )
       return c.json({ error: "この操作は許可されていません" }, 403);
   }
@@ -63,14 +70,14 @@ app.get("/api/config", (c) =>
   c.json({
     googleClientId: c.env.GOOGLE_CLIENT_ID || null,
     ai: !!c.env.AI,
-    version: "1.0.0",
+    version: "2.0.0",
   }),
 );
 app.get("/api/health", async (c) => {
   await c.env.DB.prepare("SELECT 1").first();
   return c.json({
     ok: true,
-    version: "1.0.0",
+    version: "2.0.0",
     google: !!c.env.GOOGLE_CLIENT_ID,
     ai: !!c.env.AI,
   });
@@ -161,7 +168,7 @@ app.use("/api/me/*", async (c, next) => {
     .first<Account>();
   if (!user) return c.json({ error: "ログインの有効期限が切れました" }, 401);
   if (
-    !["GET", "HEAD"].includes(c.req.method) &&
+    (!["GET", "HEAD"].includes(c.req.method) || !!c.req.header("X-Off-User")) &&
     c.req.header("X-Off-User") !== user.id
   )
     return c.json(
@@ -171,6 +178,7 @@ app.use("/api/me/*", async (c, next) => {
   c.set("user", user);
   await next();
 });
+app.route("/api/me", social);
 app.get("/api/me/profile", (c) => c.json({ user: c.get("user") }));
 app.post("/api/me/logout", async (c) => {
   const token = getCookie(c, "off_session");
@@ -273,7 +281,7 @@ app.post("/api/me/arrange", async (c) => {
           {
             role: "system",
             content:
-              "You arrange a two-input rhythm game. Return ONLY JSON with density: array of exactly 16 numbers (0.65..1.4), edgeBias: number (0.06..0.22), accentEvery: integer (2..8). Higher energy means higher density. Flow style is gentle; challenge is varied; balanced is moderate. No text, no extra keys.",
+              "You arrange a three-input rhythm game. Preserve attack timing; only adjust density. Return ONLY JSON with density: array of exactly 16 numbers (0.65..1.4), edgeBias: number (0.06..0.22), accentEvery: integer (2..8). Higher energy means higher density. Flow style is gentle; challenge is varied; balanced is moderate. No text, no extra keys.",
           },
           { role: "user", content: JSON.stringify(input) },
         ],

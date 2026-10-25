@@ -1,485 +1,500 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Pause, Play, RotateCcw, Smartphone, LogOut } from "lucide-react";
+import { Mascots } from "./Mascots.tsx";
 import {
-  ArrowLeft,
-  Pause,
-  Play,
-  RotateCcw,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
-import { MusicClock, playHit, unlockAudio } from "../lib/audio.ts";
-import { calculateScore, createChart, judge, WINDOWS } from "../lib/chart.ts";
-import type {
-  Difficulty,
-  Grade,
-  HitKind,
-  Result,
-  Settings,
-  Song,
+  MusicClock,
+  audioContext,
+  chime,
+  eventTime,
+  playHit,
+  setAmbience,
+} from "../lib/audio.ts";
+import {
+  CHART_VERSION,
+  JudgementSession,
+  calculateScore,
+} from "../lib/chart.ts";
+import {
+  HIT_KINDS,
+  HIT_STYLE,
+  type Difficulty,
+  type Grade,
+  type HitKind,
+  type Note,
+  type ReplayHit,
+  type Result,
+  type Settings,
+  type Song,
 } from "../types.ts";
-import { DIFFICULTIES } from "../types.ts";
-interface Props {
-  song: Song;
-  buffer: AudioBuffer;
-  difficulty: Difficulty;
-  settings: Settings;
-  onExit: () => void;
-  onFinish: (result: Result) => void;
-}
+const LABEL = {
+  perfect: "PERFECT",
+  great: "GREAT",
+  good: "GOOD",
+  miss: "MISS",
+};
 export function Game({
   song,
   buffer,
+  notes,
   difficulty,
   settings,
-  onExit,
   onFinish,
-}: Props) {
+  onExit,
+}: {
+  song: Song;
+  buffer: AudioBuffer;
+  notes: Note[];
+  difficulty: Difficulty;
+  settings: Settings;
+  onFinish: (r: Result) => void;
+  onExit: () => void;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null),
-    clock = useRef<MusicClock | undefined>(undefined),
+    clock = useRef<MusicClock | null>(null),
+    session = useRef(new JudgementSession(notes, settings.speed)),
+    replay = useRef<ReplayHit[]>([]),
+    ended = useRef(false),
     pausedRef = useRef(false),
-    ended = useRef(false);
-  const notes = useMemo(
-    () => createChart(song.analysis, difficulty, song.arrangement, song.bpm),
-    [song, difficulty],
-  );
-  const state = useRef({
-    statuses: new Uint8Array(notes.length),
-    combo: 0,
-    maxCombo: 0,
-    perfect: 0,
-    great: 0,
-    good: 0,
-    miss: 0,
-    cursor: 0,
-    feedback: "",
-    feedbackAt: -10,
-    ripples: [] as { kind: HitKind; at: number; x: number }[],
-  });
-  const [paused, setPaused] = useState(false),
-    [hud, setHud] = useState({ score: 0, combo: 0, time: -3, accuracy: 100 }),
-    [active, setActive] = useState<HitKind | null>(null),
-    [muted, setMuted] = useState(false);
-  const mutedRef = useRef(false),
-    finishRef = useRef(onFinish);
-  finishRef.current = onFinish;
-  const finish = useCallback(() => {
-    if (ended.current) return;
-    ended.current = true;
-    clock.current?.dispose();
-    const s = state.current;
-    for (let i = 0; i < notes.length; i++)
-      if (!s.statuses[i]) {
-        s.miss++;
-        s.statuses[i] = 4;
-      }
-    const score = calculateScore(s.perfect, s.great, s.good, notes.length);
-    finishRef.current({
-      id: crypto.randomUUID(),
-      songId: song.id,
-      title: song.title,
-      difficulty,
-      score,
-      accuracy: score / 10000,
-      maxCombo: s.maxCombo,
-      perfect: s.perfect,
-      great: s.great,
-      good: s.good,
-      miss: s.miss,
-      total: notes.length,
-      createdAt: Date.now(),
-      speed: settings.speed,
-    });
-  }, [notes, song, difficulty, settings.speed]);
-  const hit = useCallback(
-    (kind: HitKind) => {
-      if (ended.current || pausedRef.current) return;
-      playHit(kind, mutedRef.current ? 0 : settings.effects);
-      setActive(kind);
-      setTimeout(
-        () => setActive((current) => (current === kind ? null : current)),
-        100,
-      );
-      if (settings.vibration && navigator.vibrate) navigator.vibrate(8);
-      const t =
-          (clock.current?.time() ?? -5) -
-          (settings.offset / 1000) * settings.speed,
-        s = state.current;
-      if (t < 0 || (clock.current?.countdown() ?? 1) > 0) return;
-      let closest = -1,
-        distance = Infinity;
-      for (let i = Math.max(0, s.cursor - 3); i < notes.length; i++) {
-        const n = notes[i];
-        if (n.time > t + WINDOWS.good * settings.speed) break;
-        const d = Math.abs(n.time - t);
-        if (
-          !s.statuses[i] &&
-          n.kind === kind &&
-          d <= WINDOWS.good * settings.speed &&
-          d < distance
-        ) {
-          distance = d;
-          closest = i;
-        }
-      }
-      if (closest < 0) return;
-      const grade = judge(
-        (t - notes[closest].time) / settings.speed,
-      ) as Exclude<Grade, "miss">;
-      s.statuses[closest] = grade === "perfect" ? 1 : grade === "great" ? 2 : 3;
-      s[grade]++;
-      s.combo++;
-      s.maxCombo = Math.max(s.maxCombo, s.combo);
-      s.feedback = grade.toUpperCase();
-      s.feedbackAt = t;
-      s.ripples.push({ kind, at: t, x: 0 });
-    },
-    [notes, settings],
-  );
-  const togglePause = useCallback(async () => {
-    if (ended.current) return;
-    if (pausedRef.current) {
-      await unlockAudio();
-      clock.current?.resume();
-      pausedRef.current = false;
-      setPaused(false);
-    } else {
-      clock.current?.pause();
-      pausedRef.current = true;
-      setPaused(true);
-    }
+    hitFx = useRef<{ time: number; kind: HitKind; grade: Grade }[]>([]),
+    feedback = useRef({ grade: "" as Grade | "", delta: 0, at: -10 }),
+    pressed = useRef(new Set<HitKind>()),
+    [paused, setPaused] = useState(false),
+    [ready, setReady] = useState(false),
+    [hud, setHud] = useState({
+      score: 0,
+      combo: 0,
+      accuracy: 100,
+      time: 0,
+      countdown: 3,
+      grade: "" as Grade | "",
+      delta: 0,
+      miss: 0,
+      beat: 0,
+    }),
+    [landscape, setLandscape] = useState(
+      matchMedia("(orientation: landscape)").matches,
+    );
+  const [milestone, setMilestone] = useState(0);
+  function pause() {
+    if (!clock.current || ended.current || pausedRef.current) return;
+    clock.current?.pause();
+    pausedRef.current = true;
+    setPaused(true);
+  }
+  async function resume() {
+    if (!landscape) return;
+    await audioContext().resume();
+    clock.current?.resume();
+    pausedRef.current = false;
+    setPaused(false);
+  }
+  function start() {
+    if (clock.current || !landscape) return;
+    const c = new MusicClock(buffer, settings);
+    clock.current = c;
+    c.start(0, 2);
+    setReady(true);
+    setAmbience(settings.ambient ?? 0.055, "game");
+    chime([60, 67, 72], settings.effects * 0.1, 0.13);
+  }
+  useEffect(() => {
+    document.body.classList.add("playing");
+    const query = matchMedia("(orientation: landscape)"),
+      change = () => {
+        setLandscape(query.matches);
+        if (!query.matches) pause();
+      };
+    query.addEventListener("change", change);
+    const hide = () => {
+      if (document.hidden) pause();
+    };
+    document.addEventListener("visibilitychange", hide);
+    const interrupted = () => {
+      if (audioContext().state !== "running") pause();
+    };
+    audioContext().addEventListener("statechange", interrupted);
+    return () => {
+      document.body.classList.remove("playing");
+      query.removeEventListener("change", change);
+      document.removeEventListener("visibilitychange", hide);
+      audioContext().removeEventListener("statechange", interrupted);
+      clock.current?.dispose();
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+      try {
+        screen.orientation?.unlock?.();
+      } catch {}
+      setAmbience(settings.ambient ?? 0.055);
+    };
   }, []);
   useEffect(() => {
-    const instance = new MusicClock(buffer, settings);
-    clock.current = instance;
-    instance.start();
-    let raf = 0,
-      lastHud = 0;
-    const resize = () => {
-      if (!canvas.current) return;
-      const rect = canvas.current.getBoundingClientRect(),
-        dpr = Math.min(devicePixelRatio || 1, 2);
-      canvas.current.width = rect.width * dpr;
-      canvas.current.height = rect.height * dpr;
+    if (landscape && !clock.current) start();
+  }, [landscape]);
+  function hit(kind: HitKind, stamp: number) {
+    if (
+      !clock.current ||
+      pausedRef.current ||
+      ended.current ||
+      !landscape ||
+      clock.current.countdown() > 0.015
+    )
+      return;
+    playHit(kind, settings.effects, song.analysis.tonic);
+    const now = clock.current.time(),
+      at =
+        clock.current.timeAt(eventTime(stamp)) -
+        (settings.offset / 1000) * settings.speed;
+    const hitMs = Math.max(
+      replay.current.at(-1)?.[0] ?? -250,
+      Math.round(Math.max(-0.25, Math.min(song.duration, at)) * 1000),
+    );
+    if (replay.current.length < 10000)
+      replay.current.push([hitMs, HIT_KINDS.indexOf(kind)]);
+    const judged = session.current.hit(kind, hitMs / 1000);
+    const grade = judged?.grade || "miss";
+    if (judged) feedback.current = { grade, delta: judged.delta, at: now };
+    hitFx.current.push({ time: now, kind, grade });
+    pressed.current.add(kind);
+    setTimeout(() => pressed.current.delete(kind), 100);
+    if (settings.vibration && judged && navigator.vibrate) navigator.vibrate(8);
+    const combo = session.current.stats.combo;
+    if (judged && [10, 25, 50, 100, 200, 300, 500].includes(combo)) {
+      setMilestone(combo);
+      chime([72, 76, 79], settings.effects * 0.11, 0.055);
+      setTimeout(() => setMilestone(0), 1000);
+    }
+  }
+  const hitRef = useRef(hit);
+  hitRef.current = hit;
+  useEffect(() => {
+    const map: Record<string, HitKind> = {
+      KeyF: "pulse",
+      KeyJ: "pulse",
+      KeyG: "snap",
+      KeyH: "snap",
+      KeyD: "edge",
+      KeyK: "edge",
     };
-    const observer = new ResizeObserver(resize);
-    if (canvas.current) observer.observe(canvas.current);
-    resize();
-    const render = () => {
+    const key = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (map[e.code]) {
+        e.preventDefault();
+        hitRef.current(map[e.code], e.timeStamp);
+      }
+      if (e.code === "Escape") {
+        e.preventDefault();
+        pause();
+      }
+    };
+    addEventListener("keydown", key);
+    return () => removeEventListener("keydown", key);
+  }, []);
+  useEffect(() => {
+    let frame = 0,
+      lastHud = 0;
+    const el = canvas.current;
+    if (!el) return;
+    const ctx = el.getContext("2d")!;
+    function shape(kind: HitKind, x: number, y: number, r: number) {
+      ctx.beginPath();
+      if (kind === "pulse") ctx.arc(x, y, r, 0, Math.PI * 2);
+      else if (kind === "snap") {
+        ctx.moveTo(x, y - r * 1.15);
+        ctx.lineTo(x + r, y + r * 0.75);
+        ctx.lineTo(x - r, y + r * 0.75);
+        ctx.closePath();
+      } else {
+        ctx.moveTo(x, y - r * 1.1);
+        ctx.lineTo(x + r, y);
+        ctx.lineTo(x, y + r * 1.1);
+        ctx.lineTo(x - r, y);
+        ctx.closePath();
+      }
+    }
+    function draw(stamp: number) {
       if (ended.current) return;
-      const t = instance.time() - (settings.offset / 1000) * settings.speed,
-        s = state.current;
-      if (!pausedRef.current) {
-        while (
-          s.cursor < notes.length &&
-          notes[s.cursor].time < t - WINDOWS.good * settings.speed
-        ) {
-          if (!s.statuses[s.cursor]) {
-            s.statuses[s.cursor] = 4;
-            s.miss++;
-            s.combo = 0;
-            s.feedback = "MISS";
-            s.feedbackAt = t;
-          }
-          s.cursor++;
+      const c = clock.current,
+        time = c?.time() ?? -2,
+        s = session.current.stats;
+      const rect = el!.getBoundingClientRect(),
+        dpr = Math.min(2, devicePixelRatio);
+      if (
+        el!.width !== Math.round(rect.width * dpr) ||
+        el!.height !== Math.round(rect.height * dpr)
+      ) {
+        el!.width = Math.round(rect.width * dpr);
+        el!.height = Math.round(rect.height * dpr);
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const w = rect.width,
+        h = rect.height,
+        line = w * 0.16,
+        lane = h / 3;
+      ctx.clearRect(0, 0, w, h);
+      if (c && !pausedRef.current && c.countdown() <= 0) {
+        const missed = session.current.advance(
+          time - (settings.offset / 1000) * settings.speed,
+        );
+        if (missed) {
+          feedback.current = { grade: "miss", delta: 0, at: time };
+        }
+        if (time >= song.duration) {
+          ended.current = true;
+          const final = session.current.finish();
+          c.dispose();
+          onFinish({
+            id: crypto.randomUUID(),
+            songId: song.id,
+            title: song.title,
+            difficulty,
+            score: final.score,
+            accuracy: final.accuracy,
+            maxCombo: final.maxCombo,
+            perfect: final.perfect,
+            great: final.great,
+            good: final.good,
+            miss: final.miss,
+            total: notes.length,
+            createdAt: Date.now(),
+            speed: settings.speed,
+            early: final.early,
+            late: final.late,
+            meanOffset: final.meanOffset,
+            chartVersion: CHART_VERSION,
+            replay: replay.current,
+          });
+          return;
         }
       }
-      if (canvas.current) {
-        const c = canvas.current,
-          ctx = c.getContext("2d");
-        if (ctx) {
-          const dpr = Math.min(devicePixelRatio || 1, 2),
-            w = c.width / dpr,
-            h = c.height / dpr;
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          ctx.clearRect(0, 0, w, h);
-          const target = w < 500 ? 64 : 110,
-            cy = h * 0.52,
-            lead = w < 500 ? 2.2 : 3,
-            speed = (w - target - 20) / lead;
-          ctx.strokeStyle = "#e4e3eb";
-          ctx.lineWidth = 1;
-          for (const y of [cy - 45, cy, cy + 45]) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(w, y);
-            ctx.stroke();
-          }
-          ctx.fillStyle = "#f0eef5";
-          ctx.fillRect(0, cy - 45, w, 90);
-          ctx.strokeStyle = "#dedbe6";
-          ctx.setLineDash([3, 7]);
-          ctx.beginPath();
-          ctx.moveTo(target, cy - 58);
-          ctx.lineTo(target, cy + 58);
-          ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.strokeStyle = "#c5c1d1";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.arc(target, cy, 25, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.arc(target, cy, 31, 0, Math.PI * 2);
-          ctx.stroke();
-          for (let i = Math.max(0, s.cursor - 2); i < notes.length; i++) {
-            const n = notes[i];
-            if (n.time > t + lead + 0.25) break;
-            if (s.statuses[i] || n.time < t - 0.3) continue;
-            const x = target + (n.time - t) * speed,
-              r = n.accent ? 23 : 19;
-            ctx.save();
-            ctx.translate(x, cy);
-            ctx.shadowBlur = 14;
-            ctx.shadowColor = n.kind === "pulse" ? "#f5784544" : "#7660d944";
-            const grad = ctx.createLinearGradient(-r, -r, r, r);
-            grad.addColorStop(0, n.kind === "pulse" ? "#ffa67d" : "#b1a3f4");
-            grad.addColorStop(1, n.kind === "pulse" ? "#ed6b37" : "#7056d0");
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            if (n.kind === "pulse") ctx.arc(0, 0, r, 0, Math.PI * 2);
-            else {
-              ctx.moveTo(0, -r - 2);
-              ctx.lineTo(r + 2, 0);
-              ctx.lineTo(0, r + 2);
-              ctx.lineTo(-r - 2, 0);
-              ctx.closePath();
-            }
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.strokeStyle = "#ffffffba";
-            ctx.lineWidth = 1.5;
-            ctx.stroke();
-            ctx.fillStyle = "#fff";
-            ctx.font = "bold 14px system-ui";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(n.kind === "pulse" ? "●" : "◆", 0, 0);
-            ctx.restore();
-          }
-          s.ripples = s.ripples.filter((r) => t - r.at < 0.45);
-          if (!settings.reducedMotion)
-            for (const r of s.ripples) {
-              const age = Math.max(0, Math.min(1, (t - r.at) / 0.45));
-              ctx.globalAlpha = 1 - age;
-              ctx.strokeStyle = r.kind === "pulse" ? "#f47747" : "#7462d9";
-              ctx.lineWidth = 3;
-              ctx.beginPath();
-              ctx.arc(target, cy, 25 + age * 60, 0, Math.PI * 2);
-              ctx.stroke();
-              ctx.globalAlpha = 1;
-            }
-          if (instance.countdown() > 0) {
-            ctx.fillStyle = "#22212b";
-            ctx.font = "800 52px system-ui";
-            ctx.textAlign = "center";
-            ctx.fillText(
-              String(Math.ceil(instance.countdown())),
-              w * 0.55,
-              cy - 66,
-            );
-          }
-          if (s.feedback && t - s.feedbackAt < 0.7) {
-            ctx.globalAlpha = Math.max(0, 1 - (t - s.feedbackAt) / 0.7);
-            ctx.fillStyle = s.feedback === "MISS" ? "#9690a4" : "#f17749";
-            ctx.font = "800 20px system-ui";
-            ctx.textAlign = "center";
-            ctx.fillText(s.feedback, target, cy - 64);
-            ctx.globalAlpha = 1;
-          }
-          ctx.fillStyle = "#9f9aa9";
-          ctx.font = "10px system-ui";
-          ctx.textAlign = "center";
-          ctx.fillText("HIT", target, cy + 72);
-        }
+      HIT_KINDS.forEach((kind, i) => {
+        const y = lane * (i + 0.5);
+        ctx.fillStyle =
+          i % 2 ? "rgba(255,255,255,.55)" : "rgba(255,255,255,.25)";
+        ctx.fillRect(0, i * lane, w, lane - 1);
+        ctx.strokeStyle = HIT_STYLE[kind].color + "35";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+        shape(kind, line, y, Math.min(17, lane * 0.34));
+        ctx.strokeStyle = HIT_STYLE[kind].color;
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      });
+      ctx.fillStyle = "rgba(42,40,50,.2)";
+      ctx.fillRect(line - 1, 0, 2, h);
+      const visualTime =
+          time + ((settings.visualOffset ?? 0) / 1000) * settings.speed,
+        lead = 2.15 * settings.speed;
+      for (let i = session.current.cursor; i < notes.length; i++) {
+        const n = notes[i];
+        if (n.time > visualTime + lead * 1.15) break;
+        if (session.current.status[i]) continue;
+        const x = line + ((n.time - visualTime) / lead) * (w - line - 25),
+          y = lane * (HIT_KINDS.indexOf(n.kind) + 0.5),
+          r = Math.min(16, lane * 0.33) * (n.accent ? 1.12 : 1);
+        if (x < -25) continue;
+        ctx.shadowBlur = settings.reducedMotion ? 0 : 12;
+        ctx.shadowColor = HIT_STYLE[n.kind].color + "60";
+        shape(n.kind, x, y, r);
+        ctx.fillStyle = HIT_STYLE[n.kind].color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,.85)";
+        shape(n.kind, x - r * 0.2, y - r * 0.22, r * 0.2);
+        ctx.fill();
       }
-      if (performance.now() - lastHud > 80) {
-        const total = s.perfect + s.great + s.good + s.miss;
+      hitFx.current = hitFx.current.filter(
+        (f) => time - f.time < 0.45 && time - f.time >= 0,
+      );
+      for (const f of hitFx.current) {
+        const age = Math.max(0, Math.min(1, (time - f.time) / 0.45)),
+          y = lane * (HIT_KINDS.indexOf(f.kind) + 0.5);
+        ctx.globalAlpha = 1 - age;
+        shape(f.kind, line, y, Math.min(19, lane * 0.4) + age * 33);
+        ctx.strokeStyle =
+          f.grade === "miss" ? "#a6a3af" : HIT_STYLE[f.kind].color;
+        ctx.lineWidth = 3 * (1 - age);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
+      for (const kind of pressed.current) {
+        const y = lane * (HIT_KINDS.indexOf(kind) + 0.5);
+        ctx.fillStyle = HIT_STYLE[kind].color + "25";
+        ctx.fillRect(0, y - lane / 2, line + 30, lane);
+      }
+      if (stamp - lastHud > 48) {
+        lastHud = stamp;
+        const judged = s.perfect + s.great + s.good + s.miss,
+          accuracy = judged
+            ? calculateScore(s.perfect, s.great, s.good, judged) / 10000
+            : 100;
         setHud({
           score: calculateScore(s.perfect, s.great, s.good, notes.length),
           combo: s.combo,
-          time: t,
-          accuracy: total
-            ? calculateScore(s.perfect, s.great, s.good, total) / 10000
-            : 100,
+          accuracy,
+          time: Math.max(0, time),
+          countdown: c ? Math.ceil(c.countdown()) : 2,
+          grade: feedback.current.grade,
+          delta: feedback.current.delta,
+          miss: s.miss,
+          beat: Math.floor((Math.max(0, time) * song.bpm) / 60),
         });
-        lastHud = performance.now();
       }
-      if (t > buffer.duration + 0.3) {
-        finish();
-        return;
-      }
-      raf = requestAnimationFrame(render);
-    };
-    raf = requestAnimationFrame(render);
-    const keys = new Set<string>();
-    const down = (e: KeyboardEvent) => {
-      const k = e.key.toLowerCase();
-      if (["d", "f", "j", "k", " ", "escape"].includes(k)) e.preventDefault();
-      if (e.repeat || keys.has(k)) return;
-      keys.add(k);
-      if (k === "d" || k === "k") hit("edge");
-      if (k === "f" || k === "j") hit("pulse");
-      if (k === " " || k === "escape") void togglePause();
-    };
-    const up = (e: KeyboardEvent) => keys.delete(e.key.toLowerCase());
-    const hidden = () => {
-      if (document.hidden && !pausedRef.current && !ended.current) {
-        instance.pause();
-        pausedRef.current = true;
-        setPaused(true);
-      }
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    document.addEventListener("visibilitychange", hidden);
-    let wake: WakeLockSentinel | undefined;
-    navigator.wakeLock
-      ?.request("screen")
-      .then((w) => {
-        wake = w;
-      })
-      .catch(() => {});
-    return () => {
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-      instance.dispose();
-      void wake?.release();
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-      document.removeEventListener("visibilitychange", hidden);
-    };
-  }, [buffer, settings, notes, finish, hit, togglePause]);
-  const remaining = Math.max(
-    0,
-    Math.ceil(buffer.duration - Math.max(0, hud.time)),
-  );
+      frame = requestAnimationFrame(draw);
+    }
+    frame = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frame);
+  }, [notes]);
+  const heat = Math.min(
+      1,
+      (hud.combo / 50) * 0.55 + (hud.score / 1000000) * 0.45,
+    ),
+    mood = hud.grade === "miss" ? "stumble" : heat > 0.55 ? "fever" : "groove";
   return (
-    <div className="game-screen">
-      <header className="game-top">
-        <button
-          className="icon-button"
-          aria-label="一時停止"
-          onClick={() => void togglePause()}
-        >
-          <Pause size={20} />
-        </button>
-        <div>
+    <section
+      className={
+        "game-v2 theme-" +
+        (settings.theme || "pearl") +
+        (heat > 0.55 ? " is-fever" : "")
+      }
+      style={{ "--heat": heat } as CSSProperties}
+      aria-label="リズムゲーム"
+    >
+      <div className="game-aura" />
+      <header className="game-hud">
+        <div className="game-song">
+          <span>OFF MUSIC</span>
           <strong>{song.title}</strong>
-          <span>
-            {DIFFICULTIES.find((d) => d.id === difficulty)?.label} ·{" "}
-            {settings.speed}×
-          </span>
+          <small>
+            {settings.speed}× · {notes.length} NOTES
+          </small>
         </div>
-        <button
-          className="icon-button"
-          aria-label={muted ? "打音をオン" : "打音をミュート"}
-          onClick={() => {
-            mutedRef.current = !muted;
-            setMuted(!muted);
-          }}
-        >
-          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
-        </button>
-      </header>
-      <div className="song-progress">
-        <i
-          style={{
-            width: (Math.max(0, hud.time) / buffer.duration) * 100 + "%",
-          }}
-        />
-      </div>
-      <section className="game-hud">
-        <div>
-          <span>SCORE</span>
-          <strong>{hud.score.toLocaleString("en-US").padStart(7, "0")}</strong>
+        <div className="score-hud">
+          <small>SCORE</small>
+          <strong data-testid="game-score">
+            {hud.score.toLocaleString().padStart(7, "0")}
+          </strong>
         </div>
-        <div className="combo">
-          <strong>{hud.combo.toString().padStart(2, "0")}</strong>
-          <span>COMBO</span>
-        </div>
-        <div className="game-accuracy">
+        <div className="accuracy-hud">
+          <small>ACCURACY</small>
           <strong>
             {hud.accuracy.toFixed(1)}
-            <small>%</small>
+            <sup>%</sup>
           </strong>
+        </div>
+        <button className="icon-button" onClick={pause} aria-label="一時停止">
+          <Pause size={20} />
+        </button>
+      </header>
+      <div className="game-stage">
+        <Mascots bpm={song.bpm * settings.speed} mood={mood} beat={hud.beat} />
+        <div className="judge-live" data-grade={hud.grade} role="status">
+          <strong>{hud.grade ? LABEL[hud.grade] : "READY"}</strong>
           <span>
-            {Math.floor(remaining / 60)}:
-            {String(remaining % 60).padStart(2, "0")}
+            {hud.grade === "miss"
+              ? "次の音へ"
+              : hud.grade
+                ? (Math.abs(hud.delta) > 0.018
+                    ? hud.delta < 0
+                      ? "EARLY"
+                      : "LATE"
+                    : "JUST") +
+                  ` · ${hud.delta > 0 ? "+" : ""}${Math.round(hud.delta * 1000)} ms`
+                : "音に合わせてタップ"}
           </span>
         </div>
-      </section>
-      <div className="highway glass">
+        <div className="combo-hud">
+          <strong data-testid="game-combo">{hud.combo}</strong>
+          <small>COMBO</small>
+        </div>
+        {milestone > 0 && !settings.reducedMotion && (
+          <div className="combo-milestone" key={milestone}>
+            {milestone} COMBO <span>✦</span>
+          </div>
+        )}
+        <div className="heat-meter" aria-label="盛り上がり">
+          <i style={{ width: heat * 100 + "%" }} />
+          <span>{heat > 0.55 ? "FEVER" : "GROOVE"}</span>
+        </div>
+      </div>
+      <div className="highway">
         <canvas
           ref={canvas}
-          aria-label="右から流れる丸と菱形をHITラインでたたく"
+          aria-label="低音は丸、中音は三角、高音はひし形。右から左の判定線へ流れます"
         />
-        <div className="highway-label">
-          <span className="live-dot" /> LIVE SESSION <span>{song.bpm} BPM</span>
-        </div>
-      </div>
-      <div className="pad-area">
-        <button
-          className={
-            "hit-pad pulse-pad " + (active === "pulse" ? "pressed" : "")
-          }
-          aria-label="低音 丸 F J"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            hit("pulse");
-          }}
-        >
-          <div className="pad-inner">
-            <span className="pad-symbol">●</span>
+        {ready && hud.countdown > 0 && !paused && (
+          <div className="countdown" key={hud.countdown}>
+            {hud.countdown}
           </div>
-          <span className="pad-name">
-            低音 <small>F / J</small>
-          </span>
-        </button>
-        <button
-          className={"hit-pad edge-pad " + (active === "edge" ? "pressed" : "")}
-          aria-label="高音 菱形 D K"
-          onPointerDown={(e) => {
-            e.preventDefault();
-            hit("edge");
-          }}
-        >
-          <div className="pad-inner">
-            <span className="pad-symbol">◆</span>
-          </div>
-          <span className="pad-name">
-            高音 <small>D / K</small>
-          </span>
-        </button>
+        )}
       </div>
-      <p className="game-help">
-        <span className="orange">●</span> 丸は低音{" "}
-        <span className="purple">◆</span> 菱形は高音
-      </p>
-      {paused && (
-        <div className="pause-overlay">
-          <div className="pause-card glass">
-            <span className="eyebrow">SESSION PAUSED</span>
-            <h2>一時停止</h2>
-            <button className="primary" onClick={() => void togglePause()}>
-              <Play size={18} fill="currentColor" />
-              再開する
+      <div className="game-pads">
+        {HIT_KINDS.map((kind) => (
+          <button
+            key={kind}
+            className={"rhythm-pad " + kind}
+            style={{ "--pad": HIT_STYLE[kind].color } as CSSProperties}
+            aria-label={HIT_STYLE[kind].label + "を叩く"}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              hit(kind, e.timeStamp);
+            }}
+            onKeyDown={(e) => {
+              if (e.code === "Space" || e.code === "Enter") {
+                e.preventDefault();
+                if (!e.repeat) hit(kind, e.timeStamp);
+              }
+            }}
+          >
+            <span className="pad-symbol">{HIT_STYLE[kind].symbol}</span>
+            <strong>{HIT_STYLE[kind].label}</strong>
+            <small>{HIT_STYLE[kind].key}</small>
+          </button>
+        ))}
+      </div>
+      <footer className="game-progress">
+        <i
+          style={{
+            width: Math.min(100, (hud.time / song.duration) * 100) + "%",
+          }}
+        />
+        <span>
+          {Math.floor(hud.time / 60)}:
+          {String(Math.floor(hud.time % 60)).padStart(2, "0")} /{" "}
+          {Math.floor(song.duration / 60)}:
+          {String(Math.floor(song.duration % 60)).padStart(2, "0")}
+        </span>
+      </footer>
+      {(!landscape || paused) && (
+        <div className="game-overlay">
+          <div className="glass pause-card">
+            {!landscape ? (
+              <>
+                <Smartphone className="rotate-phone" size={42} />
+                <h2>スマホを横向きに</h2>
+                <p>3つのボタンと音符がすべて入る横画面で遊べます。</p>
+              </>
+            ) : (
+              <>
+                <span className="eyebrow">PAUSE</span>
+                <h2>ひと休み</h2>
+                <button className="primary wide" onClick={resume}>
+                  <Play size={18} />
+                  再開
+                </button>
+              </>
+            )}
+            <button className="quiet wide" onClick={onExit}>
+              <LogOut size={16} />
+              曲一覧に戻る
             </button>
-            <button
-              className="secondary"
-              onClick={() => {
-                clock.current?.dispose();
-                onExit();
-              }}
-            >
-              <ArrowLeft size={18} />
-              選曲に戻る
-            </button>
-            <p>
-              <RotateCcw size={13} /> 再開まで1秒のカウント
-            </p>
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }

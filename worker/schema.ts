@@ -6,6 +6,10 @@ export const settingsSchema = z.object({
   speed: z.union([z.literal(0.75), z.literal(1), z.literal(1.25)]),
   vibration: z.boolean(),
   reducedMotion: z.boolean(),
+  ambient: z.number().min(0).max(0.2).optional(),
+  visualOffset: z.number().int().min(-250).max(250).optional(),
+  theme: z.enum(["pearl", "sunset", "neon", "aurora"]).optional(),
+  calibratedAt: z.number().int().optional(),
 });
 export const resultSchema = z
   .object({

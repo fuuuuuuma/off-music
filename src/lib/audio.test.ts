@@ -56,3 +56,33 @@ it("打鍵直後に停止・再開しても再開カウント中に曲の時刻�
   expect(clock.time()).toBeCloseTo(stopped + 0.5, 2);
   clock.dispose();
 });
+it("入力イベントの発生時刻で判定し、処理待ち40msを遅れに加算しない", async () => {
+  vi.resetModules();
+  vi.stubGlobal("AudioContext", FakeAudioContext);
+  const { audioContext, MusicClock, eventTime } = await import("./audio.ts");
+  const ctx = audioContext() as unknown as FakeAudioContext;
+  const clock = new MusicClock({} as AudioBuffer, {
+    ...DEFAULT_SETTINGS,
+    speed: 1.25,
+    offset: 200,
+  });
+  clock.start();
+  ctx.currentTime += 6;
+  const now = performance.now();
+  expect(clock.timeAt(now) - clock.timeAt(now - 40)).toBeCloseTo(0.05, 2);
+  expect(eventTime(performance.timeOrigin + now)).toBeCloseTo(now, 1);
+  const baseline = new MusicClock({} as AudioBuffer, {
+    ...DEFAULT_SETTINGS,
+    offset: 0,
+  });
+  baseline.start(0, 0);
+  const compensated = new MusicClock({} as AudioBuffer, {
+    ...DEFAULT_SETTINGS,
+    offset: 200,
+  });
+  compensated.start(0, 0);
+  expect(Math.abs(baseline.time() - compensated.time())).toBeLessThan(0.002);
+  clock.dispose();
+  baseline.dispose();
+  compensated.dispose();
+});
