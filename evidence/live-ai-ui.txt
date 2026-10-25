@@ -1,0 +1,106 @@
+- complementary:
+  - button "タイトル演出":
+  - button "ライブラリ":
+  - button "成績":
+  - button "設定":
+- banner:
+  - button "OFF MUSIC ライブラリ":
+    - generic: "OFF"
+    - generic: MUSIC
+  - generic: ライブラリ
+  - text: MUSIC OFF
+  - button "アカウント": 河
+- main:
+  - generic: YOUR SESSION
+  - heading "ライブラリ 02" [level=1]:
+    - text: ライブラリ
+    - generic: "02"
+  - button "曲を追加":
+    - generic: 曲を追加
+  - text: 収録曲
+  - generic: "01"
+  - heading "MAKE SOMETHING." [level=2]:
+    - text: MAKE
+    - text: SOMETHING.
+  - generic: O
+  - generic: OFFSKU
+  - generic: 2:13 · 72 BPM
+  - button "プレイ":
+    - text: プレイ
+  - button "収録曲の詳細":
+  - generic: ✦
+  - generic: ✧
+  - text: ORIGINAL TRACK
+  - generic: 2:14
+  - generic: OFF / 001
+  - button "すべて 2"
+  - button "追加した曲 1"
+  - combobox "曲を検索": MA
+  - button "検索を消す":
+  - button "ライブラリを更新":
+  - button "MAKE SOMETHING. OFFSKU · 2:13 72 BPM":
+    - strong: MAKE SOMETHING.
+    - generic: OFFSKU · 2:13
+    - text: "72"
+    - generic: BPM
+  - button "曲を追加 MP3 / M4A / WAV / MP4":
+    - strong: 曲を追加
+    - generic: MP3 / M4A / WAV / MP4
+  - heading "最近のプレイ" [level=2]
+  - button "すべて見る":
+    - text: すべて見る
+  - article:
+    - generic: D
+    - heading "動作確認 120" [level=3]
+    - paragraph: ふつう · 1× · 10/25
+    - strong: 76,923
+    - generic: 7.7%
+  - generic: "OFF"
+  - generic: MUSIC
+  - button "アプリについて":
+    - text: アプリについて
+  - generic: © 2026 OFF MUSIC
+- button "パネルを閉じる"
+- dialog "プレイ設定":
+  - banner:
+    - heading "プレイ設定" [level=2]
+    - button "閉じる":
+  - heading "MAKE SOMETHING." [level=3]
+  - paragraph: OFFSKU
+  - generic: 2:13 · 72 BPM · AI
+  - generic: 難易度
+  - generic: 255 NOTES
+  - button "2 / 10 かんたん":
+    - strong: 2 / 10
+    - generic: かんたん
+  - button "4 / 10 ふつう":
+    - strong: 4 / 10
+    - generic: ふつう
+  - button "7 / 10 むずかしい":
+    - strong: 7 / 10
+    - generic: むずかしい
+  - button "9 / 10 エキスパート":
+    - strong: 9 / 10
+    - generic: エキスパート
+  - button "プレイする":
+    - text: プレイする
+  - generic "譜面を調整":
+    - text: 譜面を調整
+  - generic: BPM
+  - spinbutton "BPM": "72"
+  - button "保存"
+  - paragraph: 自動解析したテンポは曲によってずれる場合があります。
+  - text: AIアレンジ
+  - combobox "AIアレンジ":
+    - option "バランス"
+    - option "ゆったり" [selected]
+    - option "チャレンジ"
+  - button "生成":
+    - text: 生成
+  - paragraph: Workers AIにBPMと16区間の音の強さを送ります。音源は送信しません。Googleログイン後、1日5回まで。
+  - button "元の譜面に戻す"
+  - generic: ●
+  - text: 低音
+  - generic: ◆
+  - text: 高音
+  - generic: PC：F / J・D / K

@@ -1,0 +1,39 @@
+{
+  "name": "off-music",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5190",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.worker.json && vite build",
+    "test": "vitest run",
+    "preview": "wrangler dev --port 8797",
+    "deploy": "npm run build && wrangler deploy",
+    "db:local": "wrangler d1 migrations apply off-music --local",
+    "db:remote": "wrangler d1 migrations apply off-music --remote"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.7.6",
+    "hono": "^4.10.0",
+    "idb": "^8.0.3",
+    "jose": "^6.1.0",
+    "lucide-react": "^0.468.0",
+    "motion": "^12.23.24",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261025.1",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.0.4",
+    "typescript": "~5.9.3",
+    "vite": "^7.1.10",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.1"
+  },
+  "overrides": {
+    "undici": "^7.30.1"
+  }
+}

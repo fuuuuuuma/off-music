@@ -1,0 +1,28 @@
+{
+  "name": "off-music",
+  "account_id": "1e79beaac0754d6c457119764ab42c10",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "off-music",
+      "database_id": "cd64517a-0182-42d7-b8a6-26ce0350182c",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "ai": { "binding": "AI", "remote": true },
+  "vars": {
+    "GOOGLE_CLIENT_ID": "331580719508-1taviu0pse0qu4djjv85irsp9c61algm.apps.googleusercontent.com",
+    "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8-fast",
+    "APP_ORIGIN": "https://off-music.pinpon-fuuma.workers.dev",
+  },
+  "observability": { "enabled": true },
+}

@@ -1,0 +1,113 @@
+- banner:
+  - button "OFF MUSIC ライブラリ":
+    - generic: "OFF"
+    - generic: MUSIC
+  - text: MUSIC OFF
+  - button "アカウント": 河
+- main:
+  - generic: YOUR SESSION
+  - heading "ライブラリ 03" [level=1]:
+    - text: ライブラリ
+    - generic: "03"
+  - button "曲を追加":
+    - generic: 曲を追加
+  - text: 収録曲
+  - generic: "01"
+  - heading "MAKE SOMETHING." [level=2]:
+    - text: MAKE
+    - text: SOMETHING.
+  - generic: O
+  - generic: OFFSKU
+  - generic: 2:13 · 72 BPM
+  - button "プレイ":
+    - text: プレイ
+  - button "収録曲の詳細":
+  - generic: ✦
+  - generic: ✧
+  - text: ORIGINAL TRACK
+  - generic: 2:14
+  - generic: OFF / 001
+  - button "すべて 3"
+  - button "追加した曲 2"
+  - combobox "曲を検索"
+  - button "ライブラリを更新":
+  - button "MAKE SOMETHING. OFFSKU · 2:13 72 BPM":
+    - strong: MAKE SOMETHING.
+    - generic: OFFSKU · 2:13
+    - text: "72"
+    - generic: BPM
+  - button:
+    - generic: 削除
+  - button "動作確認 120 TEST · 0:08 120 BPM D":
+    - strong: 動作確認 120
+    - generic: TEST · 0:08
+    - text: "120"
+    - generic: BPM
+    - generic: D
+  - button "動作確認 120の操作":
+  - button:
+    - generic: 削除
+  - button "MP4取り込み確認 OFFSKU · 2:13 72 BPM":
+    - strong: MP4取り込み確認
+    - generic: OFFSKU · 2:13
+    - text: "72"
+    - generic: BPM
+  - button "MP4取り込み確認の操作":
+  - button "曲を追加 MP3 / M4A / WAV / MP4":
+    - strong: 曲を追加
+    - generic: MP3 / M4A / WAV / MP4
+  - heading "最近のプレイ" [level=2]
+  - button "すべて見る":
+    - text: すべて見る
+  - article:
+    - generic: D
+    - heading "動作確認 120" [level=3]
+    - paragraph: ふつう · 1× · 10/25
+    - strong: 76,923
+    - generic: 7.7%
+  - button "アプリについて":
+    - text: アプリについて
+- navigation "メインナビゲーション":
+  - button "ライブラリ":
+    - generic: ライブラリ
+  - button "曲を追加":
+  - button "成績":
+    - generic: 成績
+  - button "設定":
+    - generic: 設定
+- button "パネルを閉じる"
+- dialog "プレイ設定" [active]:
+  - banner:
+    - heading "プレイ設定" [level=2]
+    - button "閉じる":
+  - heading "MP4取り込み確認" [level=3]
+  - paragraph: OFFSKU
+  - generic: 2:13 · 72 BPM
+  - generic: 難易度
+  - generic: 293 NOTES
+  - button "2 / 10 かんたん":
+    - strong: 2 / 10
+    - generic: かんたん
+  - button "4 / 10 ふつう":
+    - strong: 4 / 10
+    - generic: ふつう
+  - button "7 / 10 むずかしい":
+    - strong: 7 / 10
+    - generic: むずかしい
+  - button "9 / 10 エキスパート":
+    - strong: 9 / 10
+    - generic: エキスパート
+  - button "プレイする":
+    - text: プレイする
+  - generic "譜面を調整":
+    - text: 譜面を調整
+  - option "バランス" [selected]
+  - option "ゆったり"
+  - option "チャレンジ"
+  - generic: ●
+  - text: 低音
+  - generic: ◆
+  - text: 高音
+  - generic: PC：F / J・D / K
+  - button "この曲を削除":
+    - text: この曲を削除
