@@ -40,7 +40,7 @@ EASY/NORMAL/HARD、Lv.5 EXPERT、Lv.8 MASTER。ログイン・共有・推薦・
 
 本番の移行前D1エクスポートはGit除外のevidence/private/v4/d1-before-v4.sql（権限600）。
 追加のDB migrationは不要。既存leaderboard_v3のchart_versionキーで新方式を区別する。
-公開Worker：`d99be60b-fead-4bcf-b9f1-c23a85b3ef18`。health 4.0.0正常。
+公開Worker：`bb682ff8-353e-4a5d-bd40-205316aed10b`。health 4.0.0正常。
 公開URLでもPlay & PayのMASTER/1431コンボを133.65秒全編完走。実キーで6PERFECT/1BAD、
 4219点、最大2コンボを表示し、QAなので+0XP/保存なし。Console error0。
 本人の本番アカウントも通常UIからリセットし、Lv.1/収録曲のみを保持。
@@ -60,3 +60,11 @@ BPMには半分/倍の曖昧さが残り、曲中の全テンポ変化を完全�
 起動音/BGMは最初のタップ後。全画面/向き固定は対応ブラウザで試行、未対応時は物理回転。
 新規プラン/クレジットの購入なし。既存Cloudflare/Suno枠を使用。動画検索のみvidIQ既存5credit。
 Cloudflare枠は他アプリと共有し、アカウント全体の請求0円を保証しない。
+
+## ヘッダーロゴの整理
+
+OFFとMUSICの間の点線丸は機能を持たない装飾だったため、音の強弱とリズムを表す
+静的な3本のイコライザーへ変更。再生状態表示ではなくブランドマークとして使用。
+読み上げ名は「OFF MUSIC」、曲一覧へ戻る動作を保持。320px/390pxで重なり・横溢れなし、
+公開URLで表示とクリックを確認。型検査と本番ビルド成功。本人リセットも再実行。
+[ロゴ](evidence/logo-equalizer.png)。

@@ -127,12 +127,31 @@ img {
   align-items: center;
   gap: 1px;
 }
-.logo-orbit {
-  font-size: 34px;
-  line-height: 18px;
+.logo-equalizer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 17px;
+  height: 20px;
+  margin: 0 6px;
   color: var(--accent);
-  margin: 0 3px;
-  transform: rotate(-30deg);
+  flex-shrink: 0;
+}
+.logo-equalizer i {
+  display: block;
+  width: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
+.logo-equalizer i:nth-child(1) {
+  height: 8px;
+}
+.logo-equalizer i:nth-child(2) {
+  height: 16px;
+}
+.logo-equalizer i:nth-child(3) {
+  height: 11px;
 }
 .logo-button {
   padding: 6px 0;
@@ -2670,9 +2689,10 @@ body.playing {
     font-size: 16px;
     letter-spacing: -0.7px;
   }
-  .logo-orbit {
-    font-size: 28px;
-    margin: 0 1px;
+  .logo-equalizer {
+    width: 15px;
+    height: 18px;
+    margin: 0 4px;
   }
   .header-controls {
     gap: 6px;

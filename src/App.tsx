@@ -124,8 +124,14 @@ type GameData = {
 type ToastData = { text: string; undo?: () => void };
 function Logo() {
   return (
-    <span className="logo">
-      OFF<span className="logo-orbit">◌</span>MUSIC
+    <span className="logo" role="img" aria-label="OFF MUSIC">
+      OFF
+      <span className="logo-equalizer" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+      MUSIC
     </span>
   );
 }
