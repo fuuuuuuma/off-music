@@ -43,7 +43,7 @@ describe("実際の初期曲の譜面", () => {
       expect(
         notes.every(
           (n, i) =>
-            n.time >= .7 &&
+            n.time >= 0.7 &&
             n.time < builtin.duration &&
             (!i || n.time > notes[i - 1].time),
         ),

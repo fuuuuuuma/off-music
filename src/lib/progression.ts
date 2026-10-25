@@ -5,11 +5,31 @@ export const THEMES = [
   { id: "neon", label: "ネオン", level: 5 },
   { id: "aurora", label: "オーロラ", level: 8 },
 ];
+export const EXPERT_LEVEL = 5;
+export const UNLOCKS = [
+  {
+    level: 2,
+    label: "グラスフレーム",
+    detail: "プロフィールとレベル表示が変化",
+  },
+  {
+    level: 3,
+    label: "サンセット・音楽好き",
+    detail: "テーマとステータスを解放",
+  },
+  { level: 5, label: "鬼・ネオン", detail: "最高難易度と新テーマを解放" },
+  { level: 8, label: "オーロラ", detail: "特別なカラーとコンボ演出" },
+  { level: 10, label: "ステージマスター", detail: "マスターステータスを獲得" },
+];
+export function difficultyUnlocked(level: number, difficulty: string) {
+  return difficulty !== "expert" || level >= EXPERT_LEVEL;
+}
 export function progression(
   xp = 0,
   plays = 0,
   uploads = 0,
   maxCombo = 0,
+  achievements: string[] = [],
 ): Progress {
   const level = Math.floor(Math.sqrt(Math.max(0, xp) / 80)) + 1;
   const badges: string[] = [];
@@ -21,7 +41,16 @@ export function progression(
   if (maxCombo >= 25) badges.push("25コンボ");
   if (maxCombo >= 50) badges.push("50コンボ");
   if (maxCombo >= 100) badges.push("100コンボ");
+  if (achievements.includes("rank:first")) badges.push("ランキング1位");
+  if (achievements.includes("rank:podium")) badges.push("表彰台");
+  const statuses: string[] = [];
+  if (plays >= 5 || level >= 3) statuses.push("音楽好き");
+  if (uploads >= 1) statuses.push("選曲家");
+  if (plays >= 10) statuses.push("リズムラバー");
+  if (maxCombo >= 50) statuses.push("コンボメーカー");
+  if (level >= 10) statuses.push("ステージマスター");
   return {
+    statuses,
     xp,
     plays,
     uploads,

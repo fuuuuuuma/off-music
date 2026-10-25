@@ -9,6 +9,7 @@ export const settingsSchema = z.object({
   ambient: z.number().min(0).max(0.2).optional(),
   visualOffset: z.number().int().min(-250).max(250).optional(),
   theme: z.enum(["pearl", "sunset", "neon", "aurora"]).optional(),
+  scrollSpeed: z.number().min(.6).max(2).optional(),
   calibratedAt: z.number().int().optional(),
 });
 export const resultSchema = z

@@ -12,6 +12,8 @@ import {
 import { calculateScore } from "../src/lib/chart.ts";
 import type { Env, Account } from "./env.ts";
 import social from "./social.ts";
+import resets from "./reset.ts";
+import { joinCommunity } from "./community.ts";
 export { LeaderboardRoom } from "./room.ts";
 const app = new Hono<{ Bindings: Env; Variables: { user: Account } }>();
 const googleKeys = createRemoteJWKSet(
@@ -70,14 +72,14 @@ app.get("/api/config", (c) =>
   c.json({
     googleClientId: c.env.GOOGLE_CLIENT_ID || null,
     ai: !!c.env.AI,
-    version: "2.0.0",
+    version: "3.0.0",
   }),
 );
 app.get("/api/health", async (c) => {
   await c.env.DB.prepare("SELECT 1").first();
   return c.json({
     ok: true,
-    version: "2.0.0",
+    version: "3.0.0",
     google: !!c.env.GOOGLE_CLIENT_ID,
     ai: !!c.env.AI,
   });
@@ -138,6 +140,7 @@ app.post("/api/auth/google", async (c) => {
       Date.now(),
     ),
   ]);
+  await joinCommunity(c.env.DB, payload.sub);
   deleteCookie(c, "off_nonce", { path: "/api/auth" });
   setCookie(c, "off_session", token, {
     httpOnly: true,
@@ -179,6 +182,7 @@ app.use("/api/me/*", async (c, next) => {
   await next();
 });
 app.route("/api/me", social);
+app.route("/api/me", resets);
 app.get("/api/me/profile", (c) => c.json({ user: c.get("user") }));
 app.post("/api/me/logout", async (c) => {
   const token = getCookie(c, "off_session");

@@ -1,3 +1,4 @@
+import MusicTempo from "music-tempo";
 import type { Analysis, HitKind, Peak } from "../types.ts";
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const maximum = (a: Float32Array) => {
@@ -229,6 +230,31 @@ export function analyzePCM(
         Math.abs(Math.log2(a.bpm / 125)) - Math.abs(Math.log2(b.bpm / 125)),
     );
   let bpm = plausible[0]?.bpm || 120;
+  let tracked = false;
+  // A separate spectral-flux/BeatRoot tracker follows rhythmic hypotheses over time.
+  // Keep the fast attack detector for exact note timestamps and for sparse click tracks.
+  if (peaks.length / duration > 2.5) {
+    try {
+      const start = Math.max(0, Math.min(duration - 45, duration * 0.15)),
+        clip = samples.slice(
+          Math.floor(start * sampleRate),
+          Math.min(samples.length, Math.floor((start + 45) * sampleRate)),
+        );
+      const tracker = new MusicTempo(clip, {
+        bufferSize: 1024,
+        hopSize: Math.round(sampleRate * 0.01),
+        timeStep: Math.round(sampleRate * 0.01) / sampleRate,
+        minBeatInterval: 0.3,
+        maxBeatInterval: 1.3,
+        maxTempos: 10,
+      });
+      const estimate = Number(tracker.tempo);
+      if (Number.isFinite(estimate) && estimate >= 46 && estimate <= 200) {
+        bpm = estimate;
+        tracked = true;
+      }
+    } catch {}
+  }
   const period = 60 / bpm,
     intervals: number[] = [];
   for (let i = 0; i < peaks.length; i++)
@@ -238,7 +264,7 @@ export function analyzePCM(
       if (n >= 4 && n <= 12 && Math.abs(delta / n - period) < period * 0.035)
         intervals.push(delta / n);
     }
-  if (intervals.length > 8) {
+  if (!tracked && intervals.length > 8) {
     intervals.sort((a, b) => a - b);
     bpm = 60 / intervals[Math.floor(intervals.length / 2)];
   }
@@ -317,6 +343,11 @@ export function analyzePCM(
     ),
     confidence: clamp(best * 2, 0, 1),
     tonic,
-    method: "three-band-energy-flux-backtracked-3ms",
+    method: tracked
+      ? "three-band-attacks-3ms+spectral-beatroot"
+      : "three-band-energy-flux-backtracked-3ms",
+    tempoAlternatives: [bpm / 2, bpm, bpm * 2]
+      .filter((v) => v >= 40 && v <= 240)
+      .map((v) => Math.round(v * 10) / 10),
   };
 }

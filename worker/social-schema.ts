@@ -28,6 +28,7 @@ export const analysisSchema = z
     confidence: z.number().min(0).max(1).optional(),
     tonic: z.number().int().min(0).max(11).optional(),
     method: z.string().max(100).optional(),
+    tempoAlternatives: z.array(z.number().min(40).max(240)).max(3).optional(),
   })
   .refine(
     (a) =>

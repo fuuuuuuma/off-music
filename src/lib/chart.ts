@@ -7,7 +7,7 @@ import {
   type Note,
   type ReplayHit,
 } from "../types.ts";
-export const CHART_VERSION = "onset-v2.1";
+export const CHART_VERSION = "rhythm-v3.1";
 export const WINDOWS = { perfect: 0.045, great: 0.1, good: 0.16 };
 export function timingDelta(
   songTime: number,
@@ -34,40 +34,63 @@ export function createChart(
   bpmOverride?: number,
 ): Note[] {
   const beat = 60 / (bpmOverride || analysis.bpm),
-    minGap = {
-      easy: beat * 0.85,
-      normal: beat * 0.42,
-      hard: beat * 0.27,
-      expert: Math.max(0.075, beat * 0.16),
-    }[difficulty],
-    threshold = { easy: 0.37, normal: 0.22, hard: 0.14, expert: 0.1 }[
-      difficulty
-    ];
-  const selected: Note[] = [];
-  let last = -5;
+    division = { easy: 1, normal: 2, hard: 4, expert: 8 }[difficulty],
+    step = beat / division;
+  const threshold = { easy: 0.32, normal: 0.19, hard: 0.12, expert: 0.09 }[
+    difficulty
+  ];
+  const slots = new Map<
+    number,
+    { peak: Analysis["peaks"][number]; score: number }
+  >();
   for (const p of analysis.peaks) {
     if (p.time < 0.7 || p.time >= analysis.duration - 0.25) continue;
     const density =
       arrangement?.density[
         Math.min(15, Math.floor((p.time / analysis.duration) * 16))
       ] ?? 1;
+    if (p.strength < threshold / Math.max(0.65, density)) continue;
+    const slot = Math.round((p.time - analysis.offset) / step),
+      distance = Math.abs(p.time - (analysis.offset + slot * step)),
+      affinity = Math.exp(-Math.pow(distance / (step * 0.32), 2));
     if (
-      p.time - last < minGap / Math.max(0.65, density) ||
-      p.strength < threshold / Math.max(0.65, density)
+      difficulty === "easy" &&
+      affinity < 0.25 &&
+      p.kind !== "pulse" &&
+      p.strength < 0.65
     )
       continue;
-    const kind =
-      p.kind || (p.bass > 0.21 ? "pulse" : p.bass < 0.09 ? "edge" : "snap");
-    selected.push({
-      id: selected.length,
-      time: p.time,
-      kind,
-      accent: p.strength > 0.68,
-    });
-    last = p.time;
+    const score =
+      p.strength * 0.6 +
+      (p.confidence ?? 0.5) * 0.16 +
+      affinity * 0.22 +
+      (p.kind === "pulse" ? 0.1 : 0);
+    const existing = slots.get(slot);
+    if (!existing || score > existing.score)
+      slots.set(slot, { peak: p, score });
   }
-  return selected;
+  const minGap = Math.max(difficulty === "expert" ? 0.055 : 0.075, step * 0.58),
+    ranked = [...slots.values()].sort((a, b) => b.score - a.score),
+    chosen: typeof ranked = [];
+  for (const candidate of ranked) {
+    if (
+      chosen.every(
+        (other) => Math.abs(other.peak.time - candidate.peak.time) >= minGap,
+      )
+    )
+      chosen.push(candidate);
+  }
+  return chosen
+    .sort((a, b) => a.peak.time - b.peak.time)
+    .map(({ peak: p }, id) => ({
+      id,
+      time: p.time,
+      kind:
+        p.kind || (p.bass > 0.21 ? "pulse" : p.bass < 0.09 ? "edge" : "snap"),
+      accent: p.strength > 0.68,
+    }));
 }
+
 export function calculateScore(
   perfect: number,
   great: number,

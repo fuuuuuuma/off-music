@@ -1,3 +1,4 @@
+import { COMMUNITY_ID } from "../lib/community.ts";
 import { useEffect, useState } from "react";
 import { Check, Copy, Plus, Trophy, Users } from "lucide-react";
 import { api } from "../lib/api.ts";
@@ -125,9 +126,9 @@ export function Community({
       {onLogin ? (
         <div className="empty glass">
           <Users />
-          <h2>グループで遊ぶ</h2>
+          <h2>みんなの曲で遊ぶ</h2>
           <p>
-            Googleでログインすると招待に参加でき、曲ごとの順位・総合順位がリアルタイムに更新されます。
+            Googleでログインすると全員の公開曲を遊べて、曲別・総合順位がリアルタイムに更新されます。
           </p>
           <button className="primary" onClick={onLogin}>
             Googleでログイン
@@ -207,6 +208,11 @@ export function Community({
               </small>
             </div>
           )}
+          {selected === COMMUNITY_ID && (
+            <p className="community-banner">
+              Googleログインした全ユーザーの公開曲・ランキング
+            </p>
+          )}
           {selected && (
             <>
               <div className="ranking-toolbar">
@@ -224,10 +230,12 @@ export function Community({
                     曲別
                   </button>
                 </div>
-                <button className="quiet" onClick={copy}>
-                  <Copy size={15} />
-                  招待
-                </button>
+                {selected !== COMMUNITY_ID && (
+                  <button className="quiet" onClick={copy}>
+                    <Copy size={15} />
+                    招待
+                  </button>
+                )}
               </div>
               {invite && (
                 <label className="invite-field">

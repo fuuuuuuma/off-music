@@ -8,6 +8,37 @@ const db = openDB("off-music", 1, {
   },
 });
 export const store = {
+  seenReset:async(userId:string):Promise<number> => (await db).get('settings','seen-reset:'+userId).then(v=>v||0),
+  markReset:async(userId:string,at:number)=>(await db).put('settings',at,'seen-reset:'+userId),
+  reset: async (userId: string) => {
+    const d = await db;
+    const snapshot = {
+      userId,
+      songs: await d.getAll("songs"),
+      results: (await d.getAll("results")).filter((r) => r.ownerId === userId),
+      guest: await d.get("settings", "guest-progress"),
+    };
+    if(snapshot.songs.length || snapshot.results.length || snapshot.guest || !(await d.get("settings","reset-backup"))) await d.put("settings", snapshot, "reset-backup");
+    const tx = d.transaction(["songs", "results", "settings"], "readwrite");
+    await tx.objectStore("songs").clear();
+    for (const result of snapshot.results)
+      await tx.objectStore("results").delete(result.id);
+    await tx.objectStore("settings").delete("guest-progress");
+    await tx.objectStore("settings").delete("guest-uploads");
+    await tx.done;
+  },
+  restoreReset: async (userId: string) => {
+    const d = await db,
+      snapshot = await d.get("settings", "reset-backup");
+    if (!snapshot || snapshot.userId !== userId) return;
+    const tx = d.transaction(["songs", "results", "settings"], "readwrite");
+    for (const song of snapshot.songs) await tx.objectStore("songs").put(song);
+    for (const result of snapshot.results)
+      await tx.objectStore("results").put(result);
+    if (snapshot.guest)
+      await tx.objectStore("settings").put(snapshot.guest, "guest-progress");
+    await tx.done;
+  },
   guestUploads: async (): Promise<string[]> =>
     (await db).get("settings", "guest-uploads").then((v) => v || []),
   saveGuestUploads: async (hashes: string[]) =>

@@ -92,6 +92,8 @@ beforeEach(async () => {
   sql.exec(readFileSync("migrations/0001_initial.sql", "utf8"));
   sql.exec(readFileSync("migrations/0002_social.sql", "utf8"));
   sql.exec(readFileSync("migrations/0003_play_index.sql", "utf8"));
+  sql.exec(readFileSync("migrations/0004_community.sql", "utf8"));
+  sql.exec(readFileSync("migrations/0005_discovery_totals.sql", "utf8"));
   messages.length = 0;
   objects.clear();
   for (const id of ["alice", "bob", "eve"]) {
@@ -266,5 +268,165 @@ describe("サーバー再判定と成長の一度だけ保存", () => {
     const r = (await (await request("/progress")).json()) as any;
     expect(r.progress.xp).toBe(150);
     expect(r.progress.uploads).toBe(5);
+  });
+});
+const community = "00000000-0000-4000-8000-000000000001";
+async function publish(who = "alice", seed = 1) {
+  await request("/groups", who);
+  const bytes = new Uint8Array([seed, 2, 3]).buffer,
+    digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+      (n) => n.toString(16).padStart(2, "0"),
+    ).join("");
+  const response = await request(`/groups/${community}/songs`, who, {
+    title: "Vocal Test " + seed,
+    artist: "QA",
+    hash: digest,
+    size: 3,
+    analysis,
+    rightsConfirmed: true,
+  });
+  expect(response.status).toBe(200);
+  const { id } = (await response.json()) as any;
+  expect(
+    (await request(`/groups/${community}/songs/${id}/audio`, who, bytes, "PUT"))
+      .status,
+  ).toBe(200);
+  return id;
+}
+async function finishPerfect(ticket: string, who = "alice") {
+  sql
+    .prepare("UPDATE plays SET started_at=? WHERE id=?")
+    .run(Date.now() - analysis.duration * 1000 - 4000, ticket);
+  const hits = createChart(analysis, "normal").map((n) => [
+    Math.round(n.time * 1000),
+    HIT_KINDS.indexOf(n.kind),
+  ]);
+  const r = await request(`/plays/${ticket}/finish`, who, { hits });
+  expect(r.status).toBe(200);
+  return (await r.json()) as any;
+}
+describe("Codexに依存しない全ユーザー公開", () => {
+  it("Aliceの公開直後からBobが同じ音源・正規解析を取得でき、カタログは軽量", async () => {
+    const id = await publish();
+    await request("/groups", "bob");
+    const response = await request(`/groups/${community}/songs`, "bob"),
+      body = (await response.json()) as any;
+    const song = body.songs.find((s: any) => s.id === id);
+    expect(song).toBeDefined();
+    expect(song.analysisLoaded).toBe(false);
+    expect(song.analysis.peaks).toHaveLength(0);
+    const full = (await (
+      await request(`/groups/${community}/songs/${id}/analysis`, "bob")
+    ).json()) as any;
+    expect(createChart(full.analysis, "normal")).toEqual(
+      createChart(analysis, "normal"),
+    );
+    expect(
+      (await request(`/groups/${community}/songs/${id}/audio`, "bob")).status,
+    ).toBe(200);
+    expect(
+      (await request(`/groups/${community}/songs/${id}/audio`, "anonymous"))
+        .status,
+    ).toBe(401);
+  });
+  it("未解放の鬼をAPIでも拒否し、Lv.5で許可する", async () => {
+    await request("/groups");
+    const input = {
+      songId: "glass-circuit",
+      title: "Test",
+      duration: analysis.duration,
+      difficulty: "expert",
+      speed: 1,
+      practice: false,
+      groupId: community,
+    };
+    expect((await request("/plays", "alice", input)).status).toBe(403);
+    sql.prepare("INSERT INTO progress VALUES(?,1280,20,0,100)").run("alice");
+    expect((await request("/plays", "alice", input)).status).toBe(200);
+  });
+  it("遊ばれた回数は完了だけで増え、同じチケットの再送では増えない", async () => {
+    await request("/groups");
+    const ticket = await start(community);
+    let body = (await (
+      await request(`/groups/${community}/discovery`)
+    ).json()) as any;
+    expect(body.stats).toHaveLength(0);
+    await finishPerfect(ticket);
+    await finishPerfect(ticket);
+    body = (await (
+      await request(`/groups/${community}/discovery`)
+    ).json()) as any;
+    expect(body.stats[0].plays).toBe(1);
+    expect(body.stats[0].players).toBe(1);
+  });
+  it("演奏チケットの整理後も累計プレイ数を保つ", async () => {
+    await request("/groups");
+    await finishPerfect(await start(community));
+    sql.prepare("DELETE FROM plays WHERE user_id=?").run("alice");
+    const body=await (await request(`/groups/${community}/discovery`)).json() as any;
+    expect(body.stats[0].plays).toBe(1);
+  });
+  it("3人以上の順位でボーナスを一度だけ付与する", async () => {
+    await request("/groups");
+    for (const [who, score] of [
+      ["bob", 500000],
+      ["eve", 400000],
+    ] as const) {
+      await request("/groups", who);
+      sql
+        .prepare("INSERT INTO leaderboard_v3 VALUES(?,?,?,?,?,?,?,?,?,?)")
+        .run(
+          community,
+          "glass-circuit",
+          "normal",
+          who,
+          "rhythm-v3.1",
+          score,
+          score / 10000,
+          2,
+          "test-" + who,
+          Date.now() - 1000,
+        );
+    }
+    const ticket = await start(community),
+      first = await finishPerfect(ticket);
+    expect(first.result.rankBonus).toBe(85);
+    expect(first.progress.xp).toBe(165);
+    expect(first.progress.badges).toContain("ランキング1位");
+    const repeat = await finishPerfect(ticket);
+    expect(repeat.progress.xp).toBe(165);
+    const next = await finishPerfect(await start(community));
+    expect(next.result.xpEarned).toBe(80);
+    expect(next.progress.xp).toBe(245);
+  });
+  it("自分の記録と曲だけをリセットし、バックアップから重複なく復元する", async () => {
+    const aliceSong = await publish("alice", 1),
+      bobSong = await publish("bob", 4),
+      ticket = await start(community);
+    await finishPerfect(ticket);
+    expect((await request("/reset", "alice", {})).status).toBe(200);
+    const clean = (await (await request("/progress")).json()) as any;
+    expect(clean.progress.xp).toBe(0);
+    const backup=await (await request("/reset")).json() as any;
+    const repeatReset=await (await request("/reset","alice",{})).json() as any;
+    expect(repeatReset.backupId).toBe(backup.backup.id);
+    expect(
+      (await request(`/groups/${community}/songs/${aliceSong}/audio`, "bob"))
+        .status,
+    ).toBe(404);
+    expect(
+      (await request(`/groups/${community}/songs/${bobSong}/audio`, "bob"))
+        .status,
+    ).toBe(200);
+    expect((await request("/reset/restore", "bob", {})).status).toBe(404);
+    expect((await request("/reset/restore", "alice", {})).status).toBe(200);
+    expect((await request("/reset/restore", "alice", {})).status).toBe(200);
+    const restored = (await (await request("/progress")).json()) as any;
+    expect(restored.progress.xp).toBe(80);
+    expect(
+      (await request(`/groups/${community}/songs/${aliceSong}/audio`, "bob"))
+        .status,
+    ).toBe(200);
   });
 });

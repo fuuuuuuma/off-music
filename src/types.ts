@@ -5,7 +5,7 @@ export const DIFFICULTIES: { id: Difficulty; label: string; level: number }[] =
     { id: "easy", label: "かんたん", level: 2 },
     { id: "normal", label: "ふつう", level: 4 },
     { id: "hard", label: "むずかしい", level: 7 },
-    { id: "expert", label: "エキスパート", level: 9 },
+    { id: "expert", label: "鬼", level: 10 },
   ];
 export const HIT_KINDS: HitKind[] = ["pulse", "snap", "edge"];
 export const HIT_STYLE = {
@@ -34,6 +34,7 @@ export interface Analysis {
   confidence?: number;
   tonic?: number;
   method?: string;
+  tempoAlternatives?: number[];
 }
 export interface Arrangement {
   density: number[];
@@ -62,6 +63,10 @@ export interface Song {
   creatorName?: string;
   hash?: string;
   canonical?: boolean;
+  analysisLoaded?: boolean;
+  playCount?: number;
+  playerCount?: number;
+  bpmOverride?: number;
 }
 export interface Settings {
   music: number;
@@ -74,6 +79,7 @@ export interface Settings {
   visualOffset?: number;
   theme?: string;
   calibratedAt?: number;
+  scrollSpeed?: number;
 }
 export const DEFAULT_SETTINGS: Settings = {
   music: 0.75,
@@ -85,6 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ambient: 0.055,
   visualOffset: 0,
   theme: "pearl",
+  scrollSpeed: 1,
 };
 export type Grade = "perfect" | "great" | "good" | "miss";
 export type ReplayHit = [number, number];
@@ -114,6 +121,7 @@ export interface Result {
   ticket?: string;
   replay?: ReplayHit[];
   xpEarned?: number;
+  rankBonus?: number;
   previousLevel?: number;
   level?: number;
 }
@@ -129,6 +137,7 @@ export interface Group {
   owner: boolean;
   members: number;
   inviteCode?: string;
+  isCommunity?: boolean;
 }
 export interface Progress {
   xp: number;
@@ -141,6 +150,8 @@ export interface Progress {
   themes: string[];
   nextLevelXp: number;
   levelStartXp: number;
+  statuses?: string[];
+  rankBonus?: number;
 }
 export interface RankingRow {
   memberId: string;

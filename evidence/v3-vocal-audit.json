@@ -1,0 +1,127 @@
+{
+  "date": "2026-10-26",
+  "chartVersion": "rhythm-v3.1",
+  "method": "Three-band attacks plus spectral BeatRoot. Candidate times are never snapped to BPM.",
+  "fixtures": [
+    {
+      "id": "vocal-80",
+      "duration": 57.69854875283447,
+      "detectedBpm": 159.8,
+      "alternatives": [
+        79.9,
+        159.8
+      ],
+      "attacks": 479,
+      "notes": {
+        "easy": 89,
+        "normal": 177,
+        "hard": 292,
+        "expert": 382
+      }
+    },
+    {
+      "id": "vocal-120",
+      "duration": 38.465986394557824,
+      "detectedBpm": 120.2,
+      "alternatives": [
+        60.1,
+        120.2
+      ],
+      "attacks": 353,
+      "notes": {
+        "easy": 62,
+        "normal": 136,
+        "hard": 241,
+        "expert": 289
+      }
+    },
+    {
+      "id": "vocal-180",
+      "duration": 25.650249433106577,
+      "detectedBpm": 180,
+      "alternatives": [
+        90,
+        180
+      ],
+      "attacks": 279,
+      "notes": {
+        "easy": 62,
+        "normal": 130,
+        "hard": 178,
+        "expert": 227
+      }
+    },
+    {
+      "id": "slow-vocal",
+      "duration": 41.2135,
+      "detectedBpm": 107.4,
+      "alternatives": [
+        53.7,
+        107.4,
+        214.8
+      ],
+      "attacks": 339,
+      "notes": {
+        "easy": 49,
+        "normal": 115,
+        "hard": 196,
+        "expert": 270
+      }
+    },
+    {
+      "id": "fast-vocal",
+      "duration": 32.41351473922902,
+      "detectedBpm": 133.5,
+      "alternatives": [
+        66.7,
+        133.5
+      ],
+      "attacks": 368,
+      "notes": {
+        "easy": 39,
+        "normal": 103,
+        "hard": 212,
+        "expert": 278
+      }
+    }
+  ],
+  "browser": {
+    "slow": {
+      "bpm": 107,
+      "attacks": 335,
+      "normal": 115,
+      "duration": 41.2135,
+      "completed": true
+    },
+    "fast": {
+      "bpm": 133.4,
+      "attacks": 372,
+      "normal": 110,
+      "duration": 32.4135,
+      "completed": true,
+      "feedback": "GREAT / EARLY -58 ms",
+      "xpSaved": 0
+    },
+    "playPay": {
+      "bpm": 144.3,
+      "effectiveBpm": 180.4,
+      "speed": 1.25,
+      "normal": 534,
+      "completed": true
+    }
+  },
+  "independentLibrosa": {
+    "slow": 108.173,
+    "fast": 132.512,
+    "derived80": 156.605,
+    "derived120": 120.185,
+    "derived180": 90.666
+  },
+  "notes": [
+    "vocal-80/120/180 are pitch-preserving time-stretched excerpts of the same licensed Play & Pay vocal passage; requested BPM is approximate reference, not measured ground truth.",
+    "The new tracker estimates 159.8/120.2/180 versus prior 158.6/120/120.1 for these derived fixtures; half/double ambiguity remains.",
+    "Suno generation prompts requested 80 and 180; actual outputs are approximately 107 and 133 BPM. Prompt tempo is not used as truth.",
+    "Decoder/resampler differences can change local analysis slightly. Public songs use the server-stored immutable canonical analysis for every player.",
+    "No result here measures a physical phone speaker/touch latency. QA does not persist songs, XP or rankings."
+  ]
+}

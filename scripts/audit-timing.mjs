@@ -9,4 +9,4 @@ const result={method:a.method,sampleRate:sr,bpm:a.bpm,events:truth.length,detect
 fs.writeFileSync('evidence/timing-v2.json',JSON.stringify(result,null,2));
 console.log(JSON.stringify({...result,errors:undefined}));
 if(result.p95AbsoluteErrorMs>12||result.correctKinds<26)process.exitCode=1;
-if(fs.existsSync('/tmp/off-music-v2.pcm')){const b=fs.readFileSync('/tmp/off-music-v2.pcm'),actual=analyzePCM(new Float32Array(b.buffer,b.byteOffset,b.byteLength/4),sr);fs.writeFileSync('public/music/play-pay.json',JSON.stringify(actual));console.log({track:'Play & Pay',duration:actual.duration,bpm:actual.bpm,peaks:actual.peaks.length,notes:['easy','normal','hard','expert'].map(d=>createChart(actual,d).length)});}
+if(process.argv.includes('--refresh-builtin')&&fs.existsSync('/tmp/off-music-v2.pcm')){const b=fs.readFileSync('/tmp/off-music-v2.pcm'),actual=analyzePCM(new Float32Array(b.buffer,b.byteOffset,b.byteLength/4),sr);fs.writeFileSync('public/music/play-pay.json',JSON.stringify(actual));console.log({track:'Play & Pay',duration:actual.duration,bpm:actual.bpm,peaks:actual.peaks.length,notes:['easy','normal','hard','expert'].map(d=>createChart(actual,d).length)});}

@@ -1,3 +1,4 @@
+import { travelSeconds, noteX, effectiveBpm } from "../lib/motion.ts";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Pause, Play, RotateCcw, Smartphone, LogOut } from "lucide-react";
 import { Mascots } from "./Mascots.tsx";
@@ -285,12 +286,12 @@ export function Game({
       ctx.fillRect(line - 1, 0, 2, h);
       const visualTime =
           time + ((settings.visualOffset ?? 0) / 1000) * settings.speed,
-        lead = 2.15 * settings.speed;
+        lead = travelSeconds(song.bpm, settings.scrollSpeed);
       for (let i = session.current.cursor; i < notes.length; i++) {
         const n = notes[i];
         if (n.time > visualTime + lead * 1.15) break;
         if (session.current.status[i]) continue;
-        const x = line + ((n.time - visualTime) / lead) * (w - line - 25),
+        const x = noteX(n.time, visualTime, w, song.bpm, settings.scrollSpeed),
           y = lane * (HIT_KINDS.indexOf(n.kind) + 0.5),
           r = Math.min(16, lane * 0.33) * (n.accent ? 1.12 : 1);
         if (x < -25) continue;
@@ -370,7 +371,8 @@ export function Game({
           <span>OFF MUSIC</span>
           <strong>{song.title}</strong>
           <small>
-            {settings.speed}× · {notes.length} NOTES
+            {effectiveBpm(song.bpm, settings.speed)} BPM · {settings.speed}× ·{" "}
+            {notes.length} NOTES
           </small>
         </div>
         <div className="score-hud">
