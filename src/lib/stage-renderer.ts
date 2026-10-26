@@ -3,6 +3,12 @@ import { laneAt } from "./stage-chart.ts";
 import { projectLane, stageGeometry, stageProgress } from "./stage-geometry.ts";
 import { type StageSession, type StageFeedback } from "./stage-session.ts";
 import type { Settings, StageNote } from "../types.ts";
+import { STAGE_WINDOWS } from "./stage-rules.ts";
+export interface InputEcho {
+  x: number;
+  y: number;
+  time: number;
+}
 const COLORS = {
   tap: ["#b4f6ff", "#46c5e4", "#147da3"],
   hold: ["#c6fff0", "#38d7b4", "#099c86"],
@@ -19,20 +25,21 @@ export function renderStage(
   bpm: number,
   settings: Settings,
   effects: StageFeedback[],
+  echoes: InputEcho[] = [],
 ) {
   const g = stageGeometry(width, height),
     visual = time + ((settings.visualOffset || 0) / 1000) * settings.speed;
   const point = (lane: number, at: number) =>
     projectLane(
       lane,
-      stageProgress(at, visual, bpm, settings.scrollSpeed),
+      stageProgress(at, visual, bpm, settings.scrollSpeed, settings.speed),
       width,
       height,
     );
   const p = (lane: number, progress: number) =>
     projectLane(lane, progress, width, height);
   ctx.clearRect(0, 0, width, height);
-  const outline = [p(0, 0), p(12, 0), p(12, 1.05), p(0, 1.05)];
+  const outline = [p(0, 0), p(12, 0), p(12, 1.16), p(0, 1.16)];
   ctx.beginPath();
   outline.forEach((v, i) => (i ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y)));
   ctx.closePath();
@@ -49,7 +56,7 @@ export function renderStage(
   ctx.clip();
   for (let i = 0; i <= 12; i++) {
     const a = p(i, 0),
-      b = p(i, 1.05);
+      b = p(i, 1.16);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -57,6 +64,12 @@ export function renderStage(
     ctx.lineWidth = i % 2 ? 1 : 1.5;
     ctx.stroke();
   }
+  const band = ctx.createLinearGradient(0, height * 0.65, 0, height * 0.95);
+  band.addColorStop(0, "#a58aea00");
+  band.addColorStop(0.45, "#a58aea24");
+  band.addColorStop(1, "#a58aea08");
+  ctx.fillStyle = band;
+  ctx.fillRect(0, height * 0.65, width, height * 0.3);
   const beat = 60 / bpm;
   for (let b = Math.floor(visual / beat); b < visual / beat + 6; b++) {
     const a = point(0, b * beat),
@@ -83,7 +96,7 @@ export function renderStage(
       n.type !== "hold" ||
       !n.endTime ||
       n.time > visual + 6 ||
-      n.endTime < visual - 0.2
+      n.endTime < visual - STAGE_WINDOWS.bad * settings.speed
     )
       continue;
     const points: { x: number; y: number }[][] = [[], []];
@@ -121,8 +134,15 @@ export function renderStage(
     ctx.stroke();
   }
   function bar(n: StageNote, at: number, tail = false) {
-    const progress = stageProgress(at, visual, bpm, settings.scrollSpeed);
-    if (progress < 0 || progress > 1.12) return;
+    const progress = stageProgress(
+      at,
+      visual,
+      bpm,
+      settings.scrollSpeed,
+      settings.speed,
+    );
+    if (progress < 0 || visual - at > STAGE_WINDOWS.bad * settings.speed)
+      return;
     const left = laneAt(n, at),
       a = point(left, at),
       b = point(left + n.width, at);
@@ -181,7 +201,8 @@ export function renderStage(
   }
   for (let i = notes.length - 1; i >= 0; i--) {
     const n = notes[i];
-    if (n.endTime && n.endTime >= visual - 0.2) bar(n, n.endTime, true);
+    if (n.endTime && n.endTime >= visual - STAGE_WINDOWS.bad * settings.speed)
+      bar(n, n.endTime, true);
     if (!session.status[session.noteHeads[i]]) bar(n, n.time);
   }
   ctx.restore();
@@ -247,6 +268,20 @@ export function renderStage(
         ctx.restore();
       }
     }
+    ctx.globalAlpha = 1;
+  }
+  // Input acknowledgement is independent of scoring; empty taps never award points.
+  for (const echo of echoes) {
+    const age = (time - echo.time) / settings.speed;
+    if (age < 0 || age > 0.25) continue;
+    const x = p(echo.x, 1).x,
+      y = echo.y * height;
+    ctx.globalAlpha = (1 - age / 0.25) * 0.65;
+    ctx.strokeStyle = "#a58aea";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, settings.reducedMotion ? 14 : 9 + age * 75, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.globalAlpha = 1;
   }
 }

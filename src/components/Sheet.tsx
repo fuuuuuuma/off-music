@@ -12,6 +12,10 @@ export function Sheet({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
+    ref.current?.scrollTo({ top: 0 });
+    ref.current?.focus();
+  }, [title]);
+  useEffect(() => {
     const previous = document.activeElement as HTMLElement,
       overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";

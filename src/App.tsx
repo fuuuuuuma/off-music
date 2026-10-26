@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { Sheet } from "./components/Sheet.tsx";
 import { Game } from "./components/Game.tsx";
+import { GameRules } from "./components/GameRules.tsx";
 import { Mascot, Mascots } from "./components/Mascots.tsx";
 import { Calibration } from "./components/Calibration.tsx";
 import { GoogleButton } from "./components/GoogleButton.tsx";
@@ -58,12 +59,7 @@ import {
   stopAmbience,
   unlockAudio,
 } from "./lib/audio.ts";
-import {
-  CHART_VERSION,
-  createChart,
-  NOTE_STYLE,
-  stagePoints,
-} from "./lib/stage-chart.ts";
+import { CHART_VERSION, createChart, stagePoints } from "./lib/stage-chart.ts";
 import { api, setApiUser } from "./lib/api.ts";
 import { store } from "./lib/storage.ts";
 import {
@@ -110,6 +106,7 @@ type Panel =
   | "song"
   | "login"
   | "privacy"
+  | "rules"
   | null;
 type GameData = {
   settings: Settings;
@@ -230,6 +227,7 @@ export default function App() {
     [groupId, setGroupId] = useState(localStorage.getItem("off-group") || ""),
     [tab, setTab] = useState<"library" | "ranking" | "profile">("library"),
     [panel, setPanel] = useState<Panel>(null),
+    [rulesReturn, setRulesReturn] = useState<"song" | null>(null),
     [selected, setSelected] = useState<Song | null>(null),
     [difficulty, setDifficulty] = useState<Difficulty>("normal"),
     [game, setGame] = useState<GameData | null>(null),
@@ -1900,10 +1898,18 @@ export default function App() {
               )}
               <footer className="app-footer">
                 <img src="/art/offscreen-logo.png" alt="OFFSCREEN" />
+                <button
+                  onClick={() => {
+                    setRulesReturn(null);
+                    setPanel("rules");
+                  }}
+                >
+                  遊び方・得点ルール
+                </button>
                 <button onClick={() => setPanel("privacy")}>
                   プライバシー・音源について
                 </button>
-                <small>OFF MUSIC 4.0</small>
+                <small>OFF MUSIC 4.1</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
@@ -1942,13 +1948,22 @@ export default function App() {
                   song: selected?.title || "曲",
                   login: "プレイ方法を選択",
                   privacy: "プライバシー・音源",
+                  rules: "ルール・得点",
                 }[panel]
               }
               onClose={() => {
-                setPanel(null);
+                setPanel(panel === "rules" ? rulesReturn : null);
                 gateSong.current = null;
               }}
             >
+              {panel === "rules" && (
+                <GameRules
+                  notes={rulesReturn === "song" ? chart : undefined}
+                  onBack={
+                    rulesReturn === "song" ? () => setPanel("song") : undefined
+                  }
+                />
+              )}
               {panel === "settings" && (
                 <div className="settings-content">
                   <label className="range-label">
@@ -2431,15 +2446,13 @@ export default function App() {
                       </button>
                     </div>
                   </details>
-                  <div className="pad-legend">
-                    {(
-                      Object.keys(NOTE_STYLE) as (keyof typeof NOTE_STYLE)[]
-                    ).map((k) => (
-                      <span key={k} style={{ color: NOTE_STYLE[k].color }}>
-                        {NOTE_STYLE[k].symbol} {NOTE_STYLE[k].label}
-                      </span>
-                    ))}
-                  </div>
+                  <GameRules
+                    compact
+                    onMore={() => {
+                      setRulesReturn("song");
+                      setPanel("rules");
+                    }}
+                  />
                   <div className="play-summary">
                     <span>
                       {chart.length} NOTES · {stagePoints(chart).length} COMBO ·{" "}

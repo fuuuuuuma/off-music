@@ -10,6 +10,7 @@ import {
 } from "./stage-geometry.ts";
 import { perfectInputs } from "./stage-fixtures.ts";
 import { difficultyUnlocked } from "./progression.ts";
+import { STAGE_WINDOWS } from "./stage-rules.ts";
 import type { Analysis, StageNote, StageInput } from "../types.ts";
 const builtin = JSON.parse(
   readFileSync("public/music/play-pay.json", "utf8"),
@@ -88,6 +89,55 @@ describe("譜面生成と2本の指での配置", () => {
   });
 });
 describe("位置・保持・フリック・複数の指", () => {
+  it.each([
+    [0.08, "perfect"],
+    [0.081, "great"],
+    [0.16, "great"],
+    [0.161, "good"],
+    [0.24, "good"],
+    [0.241, "bad"],
+    [0.32, "bad"],
+    [0.321, "miss"],
+  ] as const)("前後%s秒の境界を説明と同じ判定にする", (delta, grade) => {
+    expect(stageJudge(delta)).toBe(grade);
+    expect(stageJudge(-delta)).toBe(grade);
+  });
+  it.each([0.75, 1, 1.25])(
+    "%s倍速で前後320msまで得点し、外側は得点しない",
+    (speed) => {
+      for (const sign of [-1, 1]) {
+        const at = 1 + sign * STAGE_WINDOWS.bad * speed;
+        const s = replayStage(
+          [tap],
+          [[Math.round(at * 1000), 1, 0, 200, 500]],
+          speed,
+        );
+        expect(s.bad).toBe(1);
+        expect(s.score).toBe(100000);
+        const outside = 1 + sign * (STAGE_WINDOWS.bad + 0.004) * speed;
+        expect(
+          replayStage(
+            [tap],
+            [[Math.round(outside * 1000), 1, 0, 200, 500]],
+            speed,
+          ).score,
+        ).toBe(0);
+      }
+    },
+  );
+  it("音符の左右0.85レーンまで許容し、さらに外側や空振りは加点しない", () => {
+    for (const x of [15, 50, 350, 385])
+      expect(replayStage([tap], [[1000, 1, 0, x, 500]]).perfect).toBe(1);
+    for (const x of [14, 386, 900])
+      expect(replayStage([tap], [[1000, 1, 0, x, 500]]).score).toBe(0);
+    expect(replayStage([], [[1000, 1, 0, 200, 500]]).score).toBe(0);
+  });
+  it("スライドの動きで終端直後の別フリックが早期反応しない", () => {
+    const upcoming = { ...flick, id: 1, time: 2.15, lane: 6 };
+    const s = replayStage([hold, upcoming], perfectInputs([hold, upcoming]));
+    expect(s.score).toBe(1000000);
+    expect(s.bad).toBe(0);
+  });
   it("時刻が一致しても違うレーンは失敗し、正しい位置は成功", () => {
     expect(replayStage([tap], [[1000, 1, 0, 900, 850]]).score).toBe(0);
     expect(replayStage([tap], perfectInputs([tap])).score).toBe(1000000);
@@ -172,16 +222,16 @@ describe("位置・保持・フリック・複数の指", () => {
       [
         [1000, 1, 0, 200, 850],
         [1020, 1, 2, 200, 850],
-        [2110, 1, 0, 200, 850],
-        [2130, 1, 2, 200, 850],
+        [2210, 1, 0, 200, 850],
+        [2230, 1, 2, 200, 850],
       ],
     );
     expect(s.good).toBe(1);
     expect(s.miss).toBe(1);
     expect(s.maxCombo).toBe(1);
     expect(s.life).toBeLessThan(1000);
-    expect(stageJudge(0.145)).toBe("bad");
-    expect(stageJudge(0.17)).toBe("miss");
+    expect(stageJudge(0.29)).toBe("bad");
+    expect(stageJudge(0.321)).toBe("miss");
   });
   it.each([0.75, 1, 1.25])("%s倍速でも現実時間の判定幅を保つ", (speed) => {
     const s = replayStage(
@@ -244,6 +294,23 @@ describe("位置・保持・フリック・複数の指", () => {
   });
 });
 describe("透視レーンの同期・タッチ座標・解放", () => {
+  it.each([80, 144.3, 240])(
+    "%s BPMで遅れた音符も新しい判定幅の間は画面内に残す",
+    (bpm) => {
+      for (const speed of [0.75, 1, 1.25]) {
+        const progress = stageProgress(
+          10,
+          10 + STAGE_WINDOWS.bad * speed,
+          bpm,
+          1,
+          speed,
+        );
+        const position = projectLane(6, progress, 844, 300);
+        expect(position.y).toBeGreaterThan(stageGeometry(844, 300).line);
+        expect(position.y).toBeLessThan(300 - 8);
+      }
+    },
+  );
   it.each([80, 120, 180, 240])("%sBPMでも発音時刻は判定線へ到着", (bpm) => {
     for (const speed of [0.75, 1, 1.25])
       for (const scroll of [0.8, 1, 2]) {

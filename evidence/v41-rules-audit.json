@@ -1,0 +1,89 @@
+{
+  "version": "4.1.0",
+  "chartVersion": "lanes-v4.1",
+  "date": "2026-10-26",
+  "rules": {
+    "realWindowsMs": {
+      "perfect": 80,
+      "great": 160,
+      "good": 240,
+      "bad": 320
+    },
+    "lanePadding": 0.85,
+    "touchTopFraction": 0.3,
+    "scoreRatios": {
+      "perfect": 1,
+      "great": 0.7,
+      "good": 0.35,
+      "bad": 0.1,
+      "miss": 0
+    }
+  },
+  "automated": {
+    "passed": 110,
+    "files": 7,
+    "checks": [
+      "both signs of every grade boundary",
+      "320ms acceptance and rejection beyond at 0.75/1/1.25 speed",
+      "horizontal edge and empty taps",
+      "slides do not accidentally flick upcoming notes",
+      "all 5 PlayPay difficulties retain perfect score with correct physical input",
+      "late notes remain inside field at 80/144.3/240BPM",
+      "real SQLite API replay agrees with client score"
+    ]
+  },
+  "browserVocal": {
+    "source": "existing licensed fast-vocal.m4a, Japanese vocals",
+    "duration": 32.41351473922902,
+    "bpm": 133.4,
+    "difficulty": "easy",
+    "points": 44,
+    "touches": [
+      {
+        "songMs": 8202,
+        "deltaMs": 225,
+        "lane": 6.6,
+        "yFraction": 0.48,
+        "grade": "good"
+      },
+      {
+        "songMs": 9102,
+        "deltaMs": 227,
+        "lane": 5.8,
+        "yFraction": 0.5,
+        "grade": "good"
+      },
+      {
+        "songMs": 10414,
+        "deltaMs": 186,
+        "lane": 4.6,
+        "yFraction": 0.48,
+        "grade": "good"
+      }
+    ],
+    "result": {
+      "score": 23864,
+      "perfect": 0,
+      "great": 0,
+      "good": 3,
+      "bad": 0,
+      "miss": 41,
+      "xp": 0
+    },
+    "consoleErrors": 0,
+    "qaNonPersistent": true
+  },
+  "ui": [
+    "song settings always show instructions before Play",
+    "rules sheet returns to selected song",
+    "title changes reset sheet scroll to top",
+    "paused game opens rules and stays paused",
+    "320px rules table has no horizontal overflow",
+    "667x375 and 844x390 game no document overflow or scroll"
+  ],
+  "limitations": [
+    "UI tests use desktop browser viewport and pointer input; physical smartphone latency was not measured.",
+    "Most notes were deliberately left unplayed; low score is not a latency metric.",
+    "Synthetic timing audit measures onset detection, not speaker or touch latency."
+  ]
+}

@@ -1,24 +1,27 @@
 import { laneAt, stagePoints } from "./stage-chart.ts";
 import type { StageGrade, StageInput, StageNote } from "../types.ts";
-export const STAGE_WINDOWS = {
-  perfect: 0.04,
-  great: 0.08,
-  good: 0.12,
-  bad: 0.16,
-};
+import {
+  STAGE_WINDOWS,
+  STAGE_GRADES,
+  STAGE_LANE_PADDING,
+  STAGE_MAX_SCORE,
+} from "./stage-rules.ts";
+export { STAGE_WINDOWS } from "./stage-rules.ts";
+const EPSILON = 1e-9;
 export function stageJudge(delta: number): StageGrade {
   const d = Math.abs(delta);
-  return d <= 0.04
+  return d <= STAGE_WINDOWS.perfect + EPSILON
     ? "perfect"
-    : d <= 0.08
+    : d <= STAGE_WINDOWS.great + EPSILON
       ? "great"
-      : d <= 0.12
+      : d <= STAGE_WINDOWS.good + EPSILON
         ? "good"
-        : d <= 0.16
+        : d <= STAGE_WINDOWS.bad + EPSILON
           ? "bad"
           : "miss";
 }
 type Pointer = {
+  holdNote?: number;
   x: number;
   y: number;
   at: number;
@@ -78,7 +81,10 @@ export class StageSession {
   private contains(index: number, x: number, time: number) {
     const n = this.notes[index],
       left = laneAt(n, time);
-    return x >= left - 0.22 && x <= left + n.width + 0.22;
+    return (
+      x >= left - STAGE_LANE_PADDING - EPSILON &&
+      x <= left + n.width + STAGE_LANE_PADDING + EPSILON
+    );
   }
   private award(
     index: number,
@@ -95,20 +101,12 @@ export class StageSession {
       p = this.points[index];
     s[grade]++;
     this.earned +=
-      { perfect: 1, great: 0.7, good: 0.35, bad: 0.1, miss: 0 }[grade] *
-      (this.notes[p.note].accent ? 2 : 1);
-    if (grade === "perfect" || grade === "great") {
+      STAGE_GRADES[grade].ratio * (this.notes[p.note].accent ? 2 : 1);
+    if (STAGE_GRADES[grade].combo) {
       s.combo++;
       s.maxCombo = Math.max(s.maxCombo, s.combo);
     } else s.combo = 0;
-    s.life = Math.max(
-      0,
-      Math.min(
-        1000,
-        s.life +
-          { perfect: 2, great: 1, good: -15, bad: -35, miss: -55 }[grade],
-      ),
-    );
+    s.life = Math.max(0, Math.min(1000, s.life + STAGE_GRADES[grade].life));
     if (s.life === 0) s.failed = true;
     if (grade !== "miss" && p.type !== "tick") {
       s.deltas.push(delta * 1000);
@@ -130,7 +128,7 @@ export class StageSession {
           this.contains(p.note, v.x, p.time),
         );
         this.award(i, held ? "perfect" : "miss", 0, p.time);
-      } else if (time > p.time + STAGE_WINDOWS.bad * this.speed)
+      } else if (time > p.time + STAGE_WINDOWS.bad * this.speed + EPSILON)
         this.award(i, "miss", 0, p.time);
     }
     while (this.cursor < this.points.length && this.status[this.cursor])
@@ -156,6 +154,21 @@ export class StageSession {
         anchorAt: time,
       });
       const i = this.closest(time, x, ["head", "flick"]);
+      const pointer = this.pointers.get(id)!;
+      if (i >= 0 && this.notes[this.points[i].note].type === "hold")
+        pointer.holdNote = this.points[i].note;
+      else {
+        // Replacing a finger after a pause also belongs to that active slide.
+        const active = this.notes.findIndex(
+          (n, index) =>
+            n.type === "hold" &&
+            n.endTime &&
+            n.time <= time &&
+            n.endTime >= time &&
+            this.contains(index, x, time),
+        );
+        if (active >= 0) pointer.holdNote = active;
+      }
       if (i >= 0 && this.points[i].type === "head")
         this.award(
           i,
@@ -185,8 +198,16 @@ export class StageSession {
         (Math.abs(dx) >= 0.3 || Math.abs(dy) >= 0.035)
       ) {
         const tail =
-          Math.abs(dy) >= 0.035 ? this.closest(time, v.x, ["flickTail"]) : -1;
-        const i = tail >= 0 ? tail : this.closest(time, v.anchorX, ["flick"]);
+          Math.abs(dy) >= 0.035
+            ? this.closest(time, v.x, ["flickTail"], v.holdNote)
+            : -1;
+        // Following a slide must not accidentally flick a nearby upcoming note.
+        const i =
+          tail >= 0
+            ? tail
+            : v.holdNote !== undefined
+              ? -1
+              : this.closest(time, v.anchorX, ["flick"]);
         if (i >= 0) {
           const p = this.points[i],
             n = this.notes[p.note],
@@ -212,7 +233,7 @@ export class StageSession {
       v.y = y;
       v.at = time;
       if (action === 2) {
-        const i = this.closest(time, x, ["tail"]);
+        const i = this.closest(time, x, ["tail"], v.holdNote);
         if (i >= 0) {
           const delta = (time - this.points[i].time) / this.speed;
           this.award(i, stageJudge(delta), delta, time);
@@ -222,17 +243,18 @@ export class StageSession {
     }
     return this.feedback !== prior ? this.feedback : null;
   }
-  private closest(time: number, x: number, types: string[]) {
+  private closest(time: number, x: number, types: string[], note?: number) {
     let index = -1,
       distance = Infinity;
     for (let i = this.cursor; i < this.points.length; i++) {
       const p = this.points[i];
-      if (p.time > time + 0.16 * this.speed) break;
+      if (p.time > time + STAGE_WINDOWS.bad * this.speed + EPSILON) break;
       const d = Math.abs(time - p.time);
       if (
         !this.status[i] &&
+        (note === undefined || p.note === note) &&
         types.includes(p.type) &&
-        d <= 0.16 * this.speed &&
+        d <= STAGE_WINDOWS.bad * this.speed + EPSILON &&
         d < distance &&
         this.contains(p.note, x, p.time)
       ) {
@@ -244,7 +266,7 @@ export class StageSession {
   }
   get score() {
     return this.totalWeight
-      ? Math.round((this.earned / this.totalWeight) * 1000000)
+      ? Math.round((this.earned / this.totalWeight) * STAGE_MAX_SCORE)
       : 0;
   }
   finish() {

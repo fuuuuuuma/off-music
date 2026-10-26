@@ -3956,7 +3956,7 @@ body {
   position: absolute;
   left: 6%;
   right: 6%;
-  top: 80%;
+  top: 65%;
   bottom: 0;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
@@ -4160,4 +4160,198 @@ body {
   background:
     radial-gradient(ellipse at 25% 35%, #e7f7f0, transparent 65%),
     linear-gradient(125deg, #f6edf9, #f0f1ff, #e8f8f4);
+}
+
+/* Rules use the same timing and score constants as the judgement engine. */
+.game-rules {
+  color: #625e73;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.game-rules h3 {
+  color: #474156;
+  font-size: 15px;
+  margin: 23px 0 9px;
+}
+.game-rules p {
+  margin: 8px 0 16px;
+}
+.rules-heading {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: #9481b7;
+}
+.rules-heading h3 {
+  margin: 0;
+}
+.rules-lead {
+  color: #736582;
+}
+.rules-operations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.rule-operation {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 13px;
+  background: #ffffff8c;
+  border: 1px solid #fff;
+  border-radius: 17px;
+}
+.rule-operation strong {
+  color: #5a536b;
+  font-size: 12px;
+}
+.rule-operation p {
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 4px 0 0;
+}
+.rule-note {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  color: #168fba;
+  background: #b4f6ff70;
+}
+.rule-hold .rule-note {
+  color: #13a888;
+  background: #c6fff090;
+}
+.rule-flick .rule-note {
+  color: #d84c93;
+  background: #ffd2ef80;
+}
+.rule-accent .rule-note {
+  color: #ab8429;
+  background: #fff0b6a0;
+}
+.rules-quick-score {
+  display: grid;
+  gap: 3px;
+  padding-top: 10px;
+}
+.rules-quick-score strong {
+  font-size: 13px;
+  color: #76638f;
+}
+.rules-quick-score span {
+  font-size: 10px;
+}
+.rules-timing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-around;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(110deg, #e4eafc80, #eddcf580, #e3eefc80);
+}
+.rules-timing > span {
+  font-size: 11px;
+}
+.rules-timing > strong {
+  font-size: 26px;
+  color: #8c70b3;
+}
+.rules-timing p {
+  width: 100%;
+  margin: 7px 0 0;
+  font-size: 11px;
+}
+.rules-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.rules-table th,
+.rules-table td {
+  padding: 11px 4px;
+  text-align: left;
+  border-bottom: 1px solid #c9bfd733;
+}
+.rules-table thead th {
+  color: #a193b1;
+  font-weight: 500;
+}
+.rules-table tbody th {
+  color: #8971aa;
+}
+.game-rules .rules-caption {
+  font-size: 10px;
+  color: #9488a2;
+}
+.rules-score-example {
+  padding: 16px;
+  border: 1px solid #fff;
+  border-radius: 18px;
+  background: #ffffff70;
+}
+.rules-score-example p {
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.rules-score-example p:last-child {
+  margin-bottom: 0;
+}
+.rules-score-example .rules-example {
+  color: #8b6fac;
+  font-weight: 600;
+}
+.game-rules.compact {
+  margin: 18px 0;
+  padding: 16px;
+  background: #f0eaf555;
+  border: 1px solid #fff;
+  border-radius: 20px;
+}
+.compact .rules-heading h3 {
+  font-size: 13px;
+}
+.compact .rules-lead,
+.compact .rules-tolerance {
+  font-size: 11px;
+  margin: 8px 0 12px;
+}
+.compact .rule-operation {
+  padding: 10px;
+  gap: 7px;
+}
+.compact .rule-operation strong {
+  font-size: 11px;
+}
+.compact .rule-operation p {
+  font-size: 10px;
+}
+.compact .rule-note {
+  width: 24px;
+  height: 24px;
+}
+.compact .rules-quick-score {
+  margin-bottom: 8px;
+}
+.compact .quiet {
+  font-size: 11px;
+  min-height: 38px;
+}
+.rules-back {
+  margin-bottom: 14px;
+}
+@media (max-width: 380px) {
+  .rules-operations {
+    grid-template-columns: 1fr;
+  }
+  .rules-table {
+    font-size: 9px;
+  }
+  .game-rules.compact {
+    padding: 12px;
+  }
 }

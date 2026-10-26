@@ -5,7 +5,9 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from "react";
-import { Pause, Play, Smartphone, LogOut, Heart } from "lucide-react";
+import { Pause, Play, Smartphone, LogOut, Heart, BookOpen } from "lucide-react";
+import { GameRules } from "./GameRules.tsx";
+import { Sheet } from "./Sheet.tsx";
 import { Mascots } from "./Mascots.tsx";
 import {
   MusicClock,
@@ -18,7 +20,8 @@ import {
 import { CHART_VERSION, KEYS } from "../lib/stage-chart.ts";
 import { StageSession, type StageFeedback } from "../lib/stage-session.ts";
 import { touchLane } from "../lib/stage-geometry.ts";
-import { renderStage } from "../lib/stage-renderer.ts";
+import { renderStage, type InputEcho } from "../lib/stage-renderer.ts";
+import { STAGE_TOUCH_TOP } from "../lib/stage-rules.ts";
 import { effectiveBpm } from "../lib/motion.ts";
 import type {
   Difficulty,
@@ -64,9 +67,11 @@ export function Game({
   const recentInput = useRef<StageFeedback | null>(null);
   const effects = useRef<StageFeedback[]>([]),
     lastFeedback = useRef<StageFeedback | null>(null);
+  const echoes = useRef<InputEcho[]>([]);
   const moveCache = useRef(new Map<number, StageInput>()),
     physicallyDown = useRef(new Set<number>());
   const [paused, setPaused] = useState(false),
+    [showRules, setShowRules] = useState(false),
     [milestone, setMilestone] = useState(0);
   const [landscape, setLandscape] = useState(
     matchMedia("(orientation: landscape)").matches,
@@ -131,6 +136,11 @@ export function Game({
     if (action < 2) moveCache.current.set(id, event);
     else moveCache.current.delete(id);
     const feedback = session.current.input(event);
+    if (action === 0) {
+      echoes.current = [...echoes.current.slice(-15), { x, y, time: c.time() }];
+      if (!feedback)
+        playHit("pulse", settings.effects * 0.16, song.analysis.tonic);
+    }
     if (feedback) {
       recentInput.current = feedback;
       effects.current.push(feedback);
@@ -243,7 +253,7 @@ export function Game({
     const box = e.currentTarget.getBoundingClientRect(),
       y = (e.clientY - box.top) / box.height;
     if (action === 0) {
-      if (y < 0.56) return;
+      if (y < STAGE_TOUCH_TOP) return;
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
       physicallyDown.current.add(e.pointerId);
@@ -335,6 +345,7 @@ export function Game({
         song.bpm,
         settings,
         effects.current,
+        echoes.current,
       );
       if (stamp - lastHud > 48) {
         lastHud = stamp;
@@ -476,7 +487,7 @@ export function Game({
             {hud.flickError
               ? "! FLICK"
               : !hud.grade
-                ? "判定線に合わせてタッチ"
+                ? "紫の帯を目安にタッチ"
                 : hud.grade === "miss"
                   ? "次のリズムへ"
                   : (Math.abs(hud.delta) < 0.018
@@ -539,7 +550,7 @@ export function Game({
           {Math.floor(song.duration / 60)}:
           {String(Math.floor(song.duration % 60)).padStart(2, "0")}
         </time>
-        <small>長押し → 離す · フリック ↑ · PC: Shift + キー</small>
+        <small>紫の帯でタッチ · 長押し → 離す · 矢印はフリック</small>
       </footer>
       {(!landscape || paused) && (
         <div className="game-overlay">
@@ -559,6 +570,13 @@ export function Game({
                   再開
                 </button>
                 <p>スライドは指を置き直して続けられます。</p>
+                <button
+                  className="quiet wide"
+                  onClick={() => setShowRules(true)}
+                >
+                  <BookOpen size={16} />
+                  ルール・得点
+                </button>
               </>
             )}
             <button className="quiet wide" onClick={onExit}>
@@ -567,6 +585,11 @@ export function Game({
             </button>
           </div>
         </div>
+      )}
+      {showRules && (
+        <Sheet title="ルール・得点" onClose={() => setShowRules(false)}>
+          <GameRules notes={notes} />
+        </Sheet>
       )}
     </section>
   );

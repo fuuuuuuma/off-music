@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import app, { hash } from "./index.ts";
 import { createChart, CHART_VERSION } from "../src/lib/stage-chart.ts";
 import { perfectInputs } from "../src/lib/stage-fixtures.ts";
+import { replayStage } from "../src/lib/stage-session.ts";
 let sql: DatabaseSync;
 const messages: string[] = [];
 const objects = new Map<string, ArrayBuffer>();
@@ -432,6 +433,49 @@ describe("Codexに依存しない全ユーザー公開", () => {
 });
 
 describe("v4操作と版の検証", () => {
+  it("広げた時間と横位置の判定でサーバーも同じ得点を保存する", async () => {
+    const notes = createChart(analysis, "easy");
+    const first = notes.find((n) => n.type === "tap")!;
+    const hits = [
+      [
+        Math.round((first.time + 0.28) * 1000),
+        1,
+        0,
+        Math.round(
+          (first.lane >= 0.6
+            ? first.lane - 0.6
+            : first.lane + first.width + 0.6) * 100,
+        ),
+        500,
+      ],
+    ] as import("../src/types.ts").StageInput[];
+    const expected = replayStage(notes, hits);
+    expect(expected.bad).toBe(1);
+    expect(expected.score).toBeGreaterThan(0);
+    const start = await request("/plays", "alice", {
+      chartVersion: CHART_VERSION,
+      songId: "glass-circuit",
+      title: "Test",
+      duration: analysis.duration,
+      difficulty: "easy",
+      speed: 1,
+      practice: false,
+    });
+    expect(start.status).toBe(200);
+    const { ticket } = (await start.json()) as any;
+    sql
+      .prepare("UPDATE plays SET started_at=? WHERE id=?")
+      .run(Date.now() - analysis.duration * 1000 - 4000, ticket);
+    const finished = await request(`/plays/${ticket}/finish`, "alice", {
+      hits,
+      score: 1000000,
+    });
+    expect(finished.status).toBe(200);
+    const { result } = (await finished.json()) as any;
+    expect(result.score).toBe(expected.score);
+    expect(result.bad).toBe(expected.bad);
+    expect(result.chartVersion).toBe(CHART_VERSION);
+  });
   it("旧クライアントの開始を再読込案内で拒否する", async () => {
     const r = await request("/plays", "alice", {
       songId: "glass-circuit",

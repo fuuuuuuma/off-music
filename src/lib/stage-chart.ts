@@ -1,6 +1,6 @@
 import { createChart as attacks } from "./chart.ts";
 import type { Analysis, Arrangement, Difficulty, StageNote } from "../types.ts";
-export const CHART_VERSION = "lanes-v4.0";
+export const CHART_VERSION = "lanes-v4.1";
 export const LANES = 12;
 export const KEYS = ["A", "S", "D", "J", "K", "L"];
 export const NOTE_STYLE = {
