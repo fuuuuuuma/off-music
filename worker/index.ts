@@ -73,14 +73,14 @@ app.get("/api/config", (c) =>
   c.json({
     googleClientId: c.env.GOOGLE_CLIENT_ID || null,
     ai: !!c.env.AI,
-    version: "4.4.0",
+    version: "4.4.1",
   }),
 );
 app.get("/api/health", async (c) => {
   await c.env.DB.prepare("SELECT 1").first();
   return c.json({
     ok: true,
-    version: "4.4.0",
+    version: "4.4.1",
     google: !!c.env.GOOGLE_CLIENT_ID,
     ai: !!c.env.AI,
   });

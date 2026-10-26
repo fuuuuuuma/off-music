@@ -1,0 +1,123 @@
+{
+  "version": "4.4.1",
+  "chartVersion": "lanes-v4.1",
+  "automatedTests": 152,
+  "testFiles": 11,
+  "environment": {
+    "type": "isolated local Cloudflare runtime; production application code",
+    "identities": [
+      "fixture uploader",
+      "fixture player",
+      "anonymous QA guest"
+    ],
+    "googleProviderLoginTested": false,
+    "authentication": "Two independent local sessions represent users after Google sign-in; normal API authorization remains active.",
+    "isolatedStorage": [
+      "D1",
+      "R2",
+      "Durable Objects"
+    ],
+    "testLoginDeployed": false
+  },
+  "tracks": [
+    {
+      "uploadedBy": "fixture uploader",
+      "playedBy": "fixture player",
+      "duration": 41.2135,
+      "bpm": 106.9,
+      "onsets": 341,
+      "normalNotes": 114,
+      "normalPoints": 149,
+      "travelSeconds": 2.25,
+      "vocal": true,
+      "input": "real MP3 selected in UI",
+      "automaticAnalysis": true,
+      "crossUserCompletion": true,
+      "score": 0,
+      "intentionalNoNoteInput": true
+    },
+    {
+      "uploadedBy": "fixture player",
+      "playedBy": [
+        "fixture uploader",
+        "anonymous QA guest"
+      ],
+      "duration": 32.4135,
+      "bpm": 133.4,
+      "onsets": 378,
+      "normalNotes": 105,
+      "normalPoints": 135,
+      "travelSeconds": 1.8,
+      "vocal": true,
+      "input": "real MP3 selected in UI",
+      "automaticAnalysis": true,
+      "crossUserCompletion": true,
+      "guestCompletion": true,
+      "downloadedAudioMatchesSourceSHA256": true,
+      "score": 0,
+      "intentionalNoNoteInput": true
+    }
+  ],
+  "liveChecks": {
+    "publishAppearsWithoutReload": true,
+    "privateRemovesOtherUsersListAndRank": true,
+    "privateClosesSelectedDetails": true,
+    "privateClosesSongRules": true,
+    "privateStopsGuestGameAtStart": true,
+    "deleteStopsOtherSignedInGame": true,
+    "deleteClosesGuestLoginChoice": true,
+    "deleteDisablesReplayAfterCompletion": true,
+    "sameChartOnAllClients": true,
+    "swappingUploaderStillWorks": true
+  },
+  "discoveryAfterDeletion": {
+    "popular": {
+      "rows": 1,
+      "withdrawnTrackRows": 0
+    },
+    "new": {
+      "rows": 1,
+      "withdrawnTrackRows": 0
+    },
+    "recommended": {
+      "rows": 1,
+      "withdrawnTrackRows": 0
+    },
+    "searchWithdrawnTitleResults": 0
+  },
+  "publicApiAfterDeletion": {
+    "songs": 0,
+    "ranks": 0,
+    "discoveryStats": 0,
+    "audioStatuses": [
+      404,
+      404
+    ],
+    "analysisStatuses": [
+      404,
+      404
+    ]
+  },
+  "regressionFound": "A selected song detail stayed open after its public catalogue row disappeared.",
+  "fix": "Invalidate selected details, song-specific rules, login gate, gameplay and pending analysis/decode references against the latest public/owned catalogue; disable withdrawn-song replay.",
+  "consoleErrors": {
+    "uploader": 0,
+    "player": 0,
+    "guest": 0
+  },
+  "localCleanup": {
+    "results": 0,
+    "ranks": 0,
+    "xpEvents": 0,
+    "activeSongs": 0,
+    "archivedSongs": 2,
+    "builtinRetained": "Play & Pay"
+  },
+  "productionTestUploads": 0,
+  "deployment": "8c2138b2-76cc-40eb-a85a-cff0af16e4a2",
+  "limitations": [
+    "No two real Google accounts signed in concurrently in production.",
+    "No physical iPhone multi-device test.",
+    "This checks sharing and withdrawal; zero-score runs intentionally did not attempt note accuracy."
+  ]
+}

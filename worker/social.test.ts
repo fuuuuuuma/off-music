@@ -857,3 +857,101 @@ describe("全訪問者への公開と追加本人の管理", () => {
     );
   });
 });
+
+describe("初めての別ユーザーによる追加と自動共有", () => {
+  it("グループ作成・参加APIを呼ばずBobが追加し、Aliceとゲストが同じ正規譜面で遊べる", async () => {
+    const bytes = new Uint8Array([44, 41, 1]).buffer,
+      digest = Array.from(
+        new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+        (n) => n.toString(16).padStart(2, "0"),
+      ).join("");
+    expect(
+      sql
+        .prepare("SELECT COUNT(*) AS n FROM members WHERE user_id=?")
+        .get("bob")?.n,
+    ).toBe(0);
+    const response = await request(`/groups/${community}/songs`, "bob", {
+      title: "別ユーザーの歌入り曲",
+      artist: "QA",
+      hash: digest,
+      size: 3,
+      analysis,
+      rightsConfirmed: true,
+      visibility: "public",
+    });
+    expect(response.status).toBe(200);
+    const { id, owned } = (await response.json()) as any;
+    expect(owned).toBe(true);
+    expect(
+      (
+        await request(
+          `/groups/${community}/songs/${id}/audio`,
+          "bob",
+          bytes,
+          "PUT",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      sql.prepare("SELECT creator_id FROM group_songs WHERE id=?").get(id)
+        ?.creator_id,
+    ).toBe("bob");
+    const list = (await (await publicGet("/songs")).json()) as any;
+    expect(list.songs[0]).toMatchObject({
+      id,
+      visibility: "public",
+      owned: false,
+    });
+    const canonical = (await (
+      await publicGet(`/songs/${id}/analysis`)
+    ).json()) as any;
+    for (const difficulty of ["easy", "normal", "hard"] as const)
+      expect(createChart(canonical.analysis, difficulty)).toEqual(
+        createChart(analysis, difficulty),
+      );
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(200);
+    // First play also joins the shared ranking without calling group setup.
+    const started = await sharedStart(id, "alice");
+    expect(started.status).toBe(200);
+    const { ticket } = (await started.json()) as any;
+    expect((await finishPerfect(ticket, "alice")).result.score).toBe(1000000);
+    expect(
+      (
+        await request(
+          `/songs/${id}`,
+          "alice",
+          { visibility: "private" },
+          "PATCH",
+        )
+      ).status,
+    ).toBe(404);
+    await request(`/songs/${id}`, "bob", { visibility: "private" }, "PATCH");
+    expect(
+      ((await (await publicGet("/songs")).json()) as any).songs,
+    ).toHaveLength(0);
+    expect(
+      ((await (await publicGet("/rankings")).json()) as any).rows,
+    ).toHaveLength(0);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(404);
+    expect((await sharedStart(id, "alice")).status).toBe(404);
+    expect(
+      (await request(`/groups/${community}/songs/${id}/audio`, "bob")).status,
+    ).toBe(200);
+    await request(
+      `/songs/${id}`,
+      "bob",
+      { visibility: "public", rightsConfirmed: true },
+      "PATCH",
+    );
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(200);
+    await request(`/songs/${id}`, "bob", {}, "DELETE");
+    expect(
+      ((await (await publicGet("/songs")).json()) as any).songs,
+    ).toHaveLength(0);
+    expect((await publicGet(`/songs/${id}/analysis`)).status).toBe(404);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(404);
+    expect(
+      (await request(`/groups/${community}/songs/${id}/audio`, "bob")).status,
+    ).toBe(404);
+  });
+});

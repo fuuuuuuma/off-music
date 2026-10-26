@@ -5,6 +5,7 @@ import {
   type SongOrder,
 } from "./lib/discovery.ts";
 import { QA_MODE } from "./lib/qa.ts";
+import { SharedAccess } from "./lib/shared-access.ts";
 import { travelSeconds, effectiveBpm } from "./lib/motion.ts";
 import {
   useCallback,
@@ -274,9 +275,14 @@ export default function App() {
     gateSong = useRef<Song | null>(null),
     userRef = useRef(user),
     gameRef = useRef(game),
+    selectedRef = useRef(selected),
+    rulesReturnRef = useRef(rulesReturn),
+    sharedAccess = useRef(new SharedAccess()),
     profileRef = useRef(progress);
   userRef.current = user;
   gameRef.current = game;
+  selectedRef.current = selected;
+  rulesReturnRef.current = rulesReturn;
   profileRef.current = progress;
   const invite = useMemo(
     () => new URLSearchParams(location.search).get("invite") || "reset-none",
@@ -459,6 +465,7 @@ export default function App() {
       return;
     }
     const { songs: mine } = await api<{ songs: Song[] }>("/me/songs");
+    sharedAccess.current.updateOwned(mine);
     setOwnedSongs(mine);
     return mine;
   }
@@ -474,13 +481,27 @@ export default function App() {
         if (!active) return;
         setCommunitySongs(publicList.songs);
         setOwnedSongs(mine.songs);
-        const playing = gameRef.current;
-        if (
-          playing?.song.groupId === COMMUNITY_ID &&
-          !playing.song.owned &&
-          !publicList.songs.some((s) => s.id === playing.song.id)
-        ) {
-          setGame(null);
+        sharedAccess.current.updatePublic(publicList.songs);
+        sharedAccess.current.updateOwned(mine.songs);
+        const access = sharedAccess.current,
+          lostGame = !access.permits(gameRef.current?.song),
+          lostSelection = !access.permits(selectedRef.current),
+          lostGate = !access.permits(gateSong.current),
+          closeRules = lostSelection && rulesReturnRef.current === "song";
+        if (lostGame || lostSelection || lostGate) {
+          if (lostGame) setGame(null);
+          if (lostSelection) {
+            setSelected(null);
+            setRulesReturn(null);
+          }
+          if (lostGate) gateSong.current = null;
+          setPanel((current) =>
+            current === "song" ||
+            (current === "rules" && closeRules) ||
+            (current === "login" && lostGate)
+              ? null
+              : current,
+          );
           notify("この曲は公開を終了しました");
         }
       })
@@ -603,6 +624,10 @@ export default function App() {
     notify("設定を保存しました");
   }
   async function chooseSong(song: Song) {
+    if (!sharedAccess.current.permits(song)) {
+      notify("この曲は公開を終了しました");
+      return;
+    }
     setFinished(null);
     if (song.analysisLoaded === false) {
       setBusy(true);
@@ -611,6 +636,8 @@ export default function App() {
         const { analysis } = await api<{ analysis: Analysis }>(
           songAnalysisPath(song),
         );
+        if (!sharedAccess.current.permits(song))
+          throw new Error("この曲は公開を終了しました");
         const loaded = { ...song, analysis, analysisLoaded: true };
         setSelected(loaded);
         setPanel("song");
@@ -626,6 +653,10 @@ export default function App() {
   }
   async function play(song = selected) {
     if (!song || busy) return;
+    if (!sharedAccess.current.permits(song)) {
+      notify("この曲は公開を終了しました");
+      return;
+    }
     if (!QA_MODE && !difficultyUnlocked(progress.level, difficulty)) {
       notify(
         `${difficulty.toUpperCase()}はLv.${difficultyLevel(difficulty)}で解放されます`,
@@ -725,6 +756,8 @@ export default function App() {
         ticket = r.ticket;
         ranked = r.ranked;
       }
+      if (!sharedAccess.current.permits(current))
+        throw new Error("この曲は公開を終了しました");
       setPanel(null);
       setFinished(null);
       setGame({
@@ -1474,9 +1507,15 @@ export default function App() {
                       )}
                     </div>
                   </div>
+                  {!allSongs.some((s) => s.id === finished.songId) && (
+                    <p className="notice">
+                      この曲は公開を終了しました。再プレイはできません。
+                    </p>
+                  )}
                   <div className="result-actions">
                     <button
                       className="primary"
+                      disabled={!allSongs.some((s) => s.id === finished.songId)}
                       onClick={() =>
                         play(
                           allSongs.find((s) => s.id === finished.songId) ||
@@ -1952,7 +1991,7 @@ export default function App() {
                 <button onClick={() => setTutorial(true)}>
                   操作チュートリアル
                 </button>
-                <small>OFF MUSIC 4.4.0</small>
+                <small>OFF MUSIC 4.4.1</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
