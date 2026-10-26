@@ -1,0 +1,79 @@
+{
+  "version": "4.3.0",
+  "chartVersion": "lanes-v4.1",
+  "date": "2026-10-26",
+  "automated": {
+    "files": 9,
+    "passed": 132,
+    "progressCases": 11
+  },
+  "firstVisit": {
+    "afterTitleStart": "auto tutorial shown",
+    "skip": "explicit visible button",
+    "reloadedAfterSkip": "library, no tutorial",
+    "manualReplay": "available from library"
+  },
+  "independentCompletionVisit": {
+    "freshQaTab": true,
+    "actions": [
+      "tap",
+      "3500ms pointer hold and release",
+      "Shift+K flick"
+    ],
+    "reloadedBeforeFinishButton": "library, no tutorial"
+  },
+  "persistence": {
+    "normal": "localStorage, stable v1 key",
+    "qa": "separate sessionStorage",
+    "scoreReset": "does not remove onboarding history",
+    "manualPracticeSkip": "does not downgrade completed status",
+    "crossBrowserSync": false
+  },
+  "nativeInput": {
+    "tutorialTextDrag": "no visible text selection handles",
+    "contextClick": "no context menu shown",
+    "tutorialLongHoldMs": 3500,
+    "tutorialLongHoldResult": "success",
+    "playFieldComputedUserSelect": "none",
+    "rulesTextComputedUserSelect": "text",
+    "portraitSkipRect": {
+      "x": 229,
+      "right": 308,
+      "viewWidth": 320
+    }
+  },
+  "vocalTrack": {
+    "name": "Play & Pay",
+    "duration": 133.65,
+    "difficulty": "normal",
+    "inputHoldMs": 1033,
+    "scoreAfterHold": 8261,
+    "feedback": "GREAT LATE +90ms",
+    "qaNonPersistent": true,
+    "final": {
+      "score": 8261,
+      "perfect": 5,
+      "great": 1,
+      "good": 0,
+      "bad": 0,
+      "miss": 666,
+      "maxCombo": 3,
+      "xp": 0,
+      "consoleErrors": 0
+    },
+    "note": "The single hold was deliberately tested; other notes were left unplayed. This is not a physical phone latency measurement."
+  },
+  "limits": [
+    "Native pointer input and mobile viewport in desktop browser. iPhone Safari physical touch/callout was not tested on the actual device.",
+    "Document.getSelection is not available in the restricted browser evaluation scope; selection suppression was inspected visually and with computed user-select."
+  ],
+  "production": {
+    "worker": "8e945e96-d696-4108-8a45-ef76a0dc3566",
+    "version": "4.3.0",
+    "autoThenSkipThenReloadNoAuto": true,
+    "manualPracticeAllPassed": true,
+    "nativeHold3500ms": "success",
+    "afterOwnerScoreResetAndReload": "no tutorial, library visible",
+    "consoleErrors": 0
+  }
+}

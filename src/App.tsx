@@ -48,6 +48,11 @@ import { Sheet } from "./components/Sheet.tsx";
 import { Game } from "./components/Game.tsx";
 import { GameRules } from "./components/GameRules.tsx";
 import { Tutorial } from "./components/Tutorial.tsx";
+import {
+  readTutorialProgress,
+  rememberTutorialProgress,
+  type TutorialDecision,
+} from "./lib/tutorial-progress.ts";
 import { Mascot, Mascots } from "./components/Mascots.tsx";
 import { Calibration } from "./components/Calibration.tsx";
 import { GoogleButton } from "./components/GoogleButton.tsx";
@@ -256,6 +261,7 @@ export default function App() {
       "balanced",
     );
   const fileInput = useRef<HTMLInputElement>(null),
+    tutorialDecision = useRef<TutorialDecision | null>(null),
     pullStart = useRef<number | null>(null),
     gateSong = useRef<Song | null>(null),
     userRef = useRef(user),
@@ -568,12 +574,28 @@ export default function App() {
   async function enter() {
     await unlockAudio();
     setEntered(true);
+    if (!tutorialDecision.current && !readTutorialProgress(tutorialStorage()))
+      setTutorial(true);
     chime([48, 60, 67, 72, 76, 79, 84], settings.effects * 0.22, 0.09);
     setAmbience(settings.ambient ?? 0.055);
     if (invite !== "reset-none") {
       setTab("ranking");
       if (!user) setPanel("login");
     }
+  }
+  function tutorialStorage() {
+    try {
+      return QA_MODE ? sessionStorage : localStorage;
+    } catch {
+      return undefined;
+    }
+  }
+  function recordTutorial(decision: TutorialDecision) {
+    tutorialDecision.current = rememberTutorialProgress(
+      tutorialStorage(),
+      decision,
+      tutorialDecision.current,
+    );
   }
   async function saveSettings(next: Settings) {
     setSettings(next);
@@ -1916,7 +1938,7 @@ export default function App() {
                 <button onClick={() => setTutorial(true)}>
                   操作チュートリアル
                 </button>
-                <small>OFF MUSIC 4.2</small>
+                <small>OFF MUSIC 4.3</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
@@ -2634,7 +2656,14 @@ export default function App() {
           )}
         </AnimatePresence>
         {tutorial && (
-          <Tutorial settings={settings} onClose={() => setTutorial(false)} />
+          <Tutorial
+            settings={settings}
+            onComplete={() => recordTutorial("completed")}
+            onClose={(decision) => {
+              recordTutorial(decision);
+              setTutorial(false);
+            }}
+          />
         )}
         {busy && (
           <div className="busy-overlay" role="status">

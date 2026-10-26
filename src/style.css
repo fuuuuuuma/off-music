@@ -4437,6 +4437,45 @@ body.tutorial-active .app-v2 {
   border: 1px solid #fff;
   background: #ffffff90;
 }
+.tutorial-header > .tutorial-skip {
+  min-height: 38px;
+  padding: 9px 12px;
+  gap: 5px;
+  flex-shrink: 0;
+  font-size: 11px;
+  border-radius: 14px;
+}
+
+/* Keep native selection handles, callouts and image drags out of held inputs. */
+.tutorial,
+.tutorial *,
+.game-v2,
+.game-v2 * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+.game-v2 .sheet,
+.game-v2 .sheet * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: initial;
+  -webkit-user-drag: auto;
+}
+@media (max-width: 380px) {
+  .tutorial-header small {
+    font-size: 6px;
+    letter-spacing: 0.8px;
+  }
+  .tutorial-header {
+    gap: 6px;
+  }
+  .tutorial-header > .tutorial-skip {
+    padding: 8px;
+    font-size: 10px;
+  }
+}
 .tutorial-lesson {
   display: flex;
   align-items: center;

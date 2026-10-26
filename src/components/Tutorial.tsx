@@ -22,15 +22,19 @@ import { touchLane } from "../lib/stage-geometry.ts";
 import { STAGE_TOUCH_TOP, STAGE_WINDOWS } from "../lib/stage-rules.ts";
 import { chime, playHit, unlockAudio } from "../lib/audio.ts";
 import type { Settings } from "../types.ts";
+import type { TutorialDecision } from "../lib/tutorial-progress.ts";
+import { usePlaySurface } from "./usePlaySurface.ts";
 
 const CODES = ["KeyA", "KeyS", "KeyD", "KeyJ", "KeyK", "KeyL"];
 const ICONS = [Pointer, Hand, MoveUp];
 export function Tutorial({
   settings,
   onClose,
+  onComplete,
 }: {
   settings: Settings;
-  onClose: () => void;
+  onClose: (decision: TutorialDecision) => void;
+  onComplete: () => void;
 }) {
   const [model] = useState(() => new TutorialSession());
   const [revision, update] = useState(0);
@@ -39,10 +43,20 @@ export function Tutorial({
   );
   const root = useRef<HTMLElement>(null),
     canvas = useRef<HTMLCanvasElement>(null);
+  usePlaySurface(root);
+  const reportedCompletion = useRef(false);
+  useEffect(() => {
+    if (model.allComplete && !reportedCompletion.current) {
+      reportedCompletion.current = true;
+      onComplete();
+    }
+  }, [revision, model, onComplete]);
   const down = useRef(new Set<number>());
   const active = useRef(landscape && !document.hidden);
-  const close = useRef(onClose);
-  close.current = onClose;
+  const close = useRef(() =>
+    onClose(model.allComplete ? "completed" : "skipped"),
+  );
+  close.current = () => onClose(model.allComplete ? "completed" : "skipped");
   const drawSettings = useRef({
     ...settings,
     speed: 1,
@@ -275,11 +289,16 @@ export function Tutorial({
           ))}
         </ol>
         <button
-          className="icon-button"
-          onClick={onClose}
-          aria-label="チュートリアルを閉じる"
+          className="quiet tutorial-skip"
+          onClick={() => close.current()}
+          aria-label={
+            model.allComplete
+              ? "チュートリアルを閉じる"
+              : "チュートリアルをスキップ"
+          }
         >
-          <X size={21} />
+          <X size={16} />
+          <span>{model.allComplete ? "終了" : "スキップ"}</span>
         </button>
       </header>
       <div className="tutorial-lesson">
@@ -384,7 +403,7 @@ export function Tutorial({
               <button
                 className="primary"
                 onClick={() => {
-                  if (model.allComplete) onClose();
+                  if (model.allComplete) close.current();
                   else {
                     model.next();
                     refresh();
@@ -419,8 +438,8 @@ export function Tutorial({
           <Smartphone size={42} />
           <h3>スマホを横向きに</h3>
           <p>光る場所と音符を一緒に見ながら練習できます。</p>
-          <button className="quiet" onClick={onClose}>
-            いまは戻る
+          <button className="quiet" onClick={() => close.current()}>
+            いまはスキップ
           </button>
         </div>
       )}

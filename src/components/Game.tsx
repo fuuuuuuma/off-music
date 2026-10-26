@@ -8,6 +8,7 @@ import {
 import { Pause, Play, Smartphone, LogOut, Heart, BookOpen } from "lucide-react";
 import { GameRules } from "./GameRules.tsx";
 import { Sheet } from "./Sheet.tsx";
+import { usePlaySurface } from "./usePlaySurface.ts";
 import { Mascots } from "./Mascots.tsx";
 import {
   MusicClock,
@@ -60,8 +61,10 @@ export function Game({
   onPractice: () => void;
   tutorialOpen: boolean;
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null),
+  const root = useRef<HTMLElement>(null),
+    canvas = useRef<HTMLCanvasElement>(null),
     clock = useRef<MusicClock | null>(null);
+  usePlaySurface(root);
   const [session] = useState(() => ({
     current: new StageSession(notes, settings.speed),
   }));
@@ -396,6 +399,7 @@ export function Game({
   const total = session.current.points.length;
   return (
     <section
+      ref={root}
       inert={tutorialOpen}
       className={
         "game-v2 stage-v4 theme-" +

@@ -1,4 +1,4 @@
-# OFF MUSIC 4.2
+# OFF MUSIC 4.3
 
 白いLiquid Glass UI、12分割の奥行きレーンを直接タッチする横画面音楽ゲーム。
 左上のロゴはOFFとMUSICの間に3本のイコライザーを配置し、音の強弱とリズムを表します。
@@ -77,6 +77,23 @@ Canvas描画・StageSession・許容範囲を本番と共有。案内の音符�
 フリックの速さは独立した実時間で測るため、遅いドラッグを成功にしません。
 練習を開いた元の選曲/ルールへ戻り、一時停止中の曲は時間も得点も進みません。
 通常プレイの判定・譜面版はlanes-v4.1を維持します。
+
+## 初回案内と長押し対策（4.3）
+
+初めて使う端末・ブラウザでは、タイトル画面のスタート後にチュートリアルを自動で開きます。
+右上の「スキップ」、縦画面の「いまはスキップ」、Escで途中終了できます。
+完了は3操作の成功時点、スキップは終了操作の時点でこのブラウザに保存し、次の起動では自動表示しません。
+一覧/選曲/ルールから何度でも練習可能。完了後に練習を途中終了しても完了履歴を保持します。
+記録/曲のリセットやアプリの通常更新では初回案内の履歴を消しません。
+ゲストも使えるlocalStorage方式で、Googleアカウントをまたいだ別ブラウザへの同期は行いません。
+ブラウザデータを消すと初回扱いに戻ります。QAは専用のsessionStorageで検証し、本来の履歴に書き込みません。
+
+チュートリアルと本番プレイ面・説明にはuser-select:noneとSafari用のプレフィックス、
+-webkit-touch-callout:noneを適用。contextmenu/selectstart/dragstartと、プレイ領域内の残存選択を抑制します。
+ゲーム内の別パネルにあるルール本文や入力欄は対象外です。
+参考：[Apple Safariの長押しcallout仕様](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariCSSRef/Articles/StandardCSSProperties.html)、
+[MDNのuser-select](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/user-select)、
+[selectionchange](https://developer.mozilla.org/en-US/docs/Web/API/Document/selectionchange_event)。
 
 ## 曲の公開・ランキング
 
