@@ -134,11 +134,12 @@ export class StageSession {
     while (this.cursor < this.points.length && this.status[this.cursor])
       this.cursor++;
   }
-  input(event: StageInput) {
+  input(event: StageInput, gestureTime?: number) {
     const [ms, id, action, rawX, rawY] = event,
       time = ms / 1000,
       x = rawX / 100,
-      y = rawY / 1000;
+      y = rawY / 1000,
+      gestureAt = gestureTime ?? time;
     if (time < this.lastInputTime) return null;
     this.lastInputTime = time;
     this.advance(time);
@@ -148,10 +149,10 @@ export class StageSession {
       this.pointers.set(id, {
         x,
         y,
-        at: time,
+        at: gestureAt,
         anchorX: x,
         anchorY: y,
-        anchorAt: time,
+        anchorAt: gestureAt,
       });
       const i = this.closest(time, x, ["head", "flick"]);
       const pointer = this.pointers.get(id)!;
@@ -183,14 +184,14 @@ export class StageSession {
         this.pointers.delete(id);
         return null;
       }
-      if ((time - v.anchorAt) / this.speed > 0.2) {
+      if ((gestureAt - v.anchorAt) / this.speed > 0.2) {
         v.anchorX = v.x;
         v.anchorY = v.y;
-        v.anchorAt = Math.max(v.at, time - 0.016 * this.speed);
+        v.anchorAt = Math.max(v.at, gestureAt - 0.016 * this.speed);
       }
       const dx = x - v.anchorX,
         dy = y - v.anchorY,
-        elapsed = (time - v.anchorAt) / this.speed;
+        elapsed = (gestureAt - v.anchorAt) / this.speed;
       if (
         (action === 1 || action === 2) &&
         elapsed >= 0 &&
@@ -226,12 +227,12 @@ export class StageSession {
           );
           v.anchorX = x;
           v.anchorY = y;
-          v.anchorAt = time;
+          v.anchorAt = gestureAt;
         }
       }
       v.x = x;
       v.y = y;
-      v.at = time;
+      v.at = gestureAt;
       if (action === 2) {
         const i = this.closest(time, x, ["tail"], v.holdNote);
         if (i >= 0) {

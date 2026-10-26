@@ -47,6 +47,8 @@ export function Game({
   settings,
   onFinish,
   onExit,
+  onPractice,
+  tutorialOpen,
 }: {
   song: Song;
   buffer: AudioBuffer;
@@ -55,6 +57,8 @@ export function Game({
   settings: Settings;
   onFinish: (r: Result) => void;
   onExit: () => void;
+  onPractice: () => void;
+  tutorialOpen: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null),
     clock = useRef<MusicClock | null>(null);
@@ -392,6 +396,7 @@ export function Game({
   const total = session.current.points.length;
   return (
     <section
+      inert={tutorialOpen}
       className={
         "game-v2 stage-v4 theme-" +
         (settings.theme || "pearl") +
@@ -588,7 +593,7 @@ export function Game({
       )}
       {showRules && (
         <Sheet title="ルール・得点" onClose={() => setShowRules(false)}>
-          <GameRules notes={notes} />
+          <GameRules notes={notes} onPractice={onPractice} />
         </Sheet>
       )}
     </section>

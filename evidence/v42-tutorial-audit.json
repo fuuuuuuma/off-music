@@ -1,0 +1,67 @@
+{
+  "appVersion": "4.2.0",
+  "chartVersion": "lanes-v4.1",
+  "date": "2026-10-26",
+  "tests": {
+    "files": 8,
+    "passed": 121,
+    "tutorialCases": 11
+  },
+  "guidedRules": {
+    "types": [
+      "tap",
+      "hold",
+      "flick"
+    ],
+    "waitAtJudgementLine": true,
+    "sameEngineAsGame": true,
+    "flickUsesIndependentRealClock": true,
+    "writesScoreOrXp": false
+  },
+  "browserInputs": {
+    "viewport": [
+      667,
+      375
+    ],
+    "tap": "pointer click on illuminated blue target",
+    "hold": "premature release rejected, 1700ms pointer hold/release succeeded",
+    "flick": "plain click rejected, upward drag succeeded",
+    "keyboard": "S, J held1700ms, Shift+K; all three passed"
+  },
+  "integration": {
+    "entries": [
+      "library",
+      "song settings",
+      "rules in paused game"
+    ],
+    "originalSong": "Play & Pay (vocals), NORMAL, 133.65s",
+    "beforeProgressPercent": 16.4233,
+    "afterProgressPercent": 16.4233,
+    "beforeAndAfterScore": 0,
+    "returnedTo": "paused rules; manually resumed original track",
+    "finishedOriginalSong": {
+      "duration": 133.65,
+      "score": 0,
+      "miss": 672,
+      "xp": 0,
+      "qa": true,
+      "consoleErrors": 0,
+      "note": "Notes in the main track were deliberately left unplayed; tutorial inputs stayed isolated."
+    }
+  },
+  "viewportResults": "v42-tutorial-layout.json",
+  "portrait": [
+    390,
+    844
+  ],
+  "limitations": [
+    "Desktop browser actual input with mobile viewport; no physical smartphone touch/latency measurement.",
+    "Guided notes deliberately wait at the line; regular play keeps its timing windows."
+  ],
+  "production": {
+    "worker": "9d8b9a32-6f90-4a97-9adb-e04a025601c6",
+    "health": "4.2.0",
+    "allThreeActionsPassed": true,
+    "ownerResetViaUI": true
+  }
+}

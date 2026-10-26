@@ -45,11 +45,13 @@ export function GameRules({
   notes,
   onMore,
   onBack,
+  onPractice,
 }: {
   compact?: boolean;
   notes?: StageNote[];
   onMore?: () => void;
   onBack?: () => void;
+  onPractice?: () => void;
 }) {
   const points = notes ? stagePoints(notes) : [];
   const weight = notes
@@ -74,6 +76,12 @@ export function GameRules({
       <p className="rules-lead">
         紫の帯を目安に、音符と同じ横位置をタッチ。線ぴったりでなくても反応します。
       </p>
+      {onPractice && (
+        <button className="primary wide rules-practice" onClick={onPractice}>
+          <Pointer size={17} />
+          光るガイドで操作を試す
+        </button>
+      )}
       <div className="rules-operations">
         {operations.map(({ id, label, Icon, text }) => (
           <div className={"rule-operation rule-" + id} key={id}>

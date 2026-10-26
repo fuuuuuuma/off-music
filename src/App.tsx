@@ -47,6 +47,7 @@ import {
 import { Sheet } from "./components/Sheet.tsx";
 import { Game } from "./components/Game.tsx";
 import { GameRules } from "./components/GameRules.tsx";
+import { Tutorial } from "./components/Tutorial.tsx";
 import { Mascot, Mascots } from "./components/Mascots.tsx";
 import { Calibration } from "./components/Calibration.tsx";
 import { GoogleButton } from "./components/GoogleButton.tsx";
@@ -228,6 +229,7 @@ export default function App() {
     [tab, setTab] = useState<"library" | "ranking" | "profile">("library"),
     [panel, setPanel] = useState<Panel>(null),
     [rulesReturn, setRulesReturn] = useState<"song" | null>(null),
+    [tutorial, setTutorial] = useState(false),
     [selected, setSelected] = useState<Song | null>(null),
     [difficulty, setDifficulty] = useState<Difficulty>("normal"),
     [game, setGame] = useState<GameData | null>(null),
@@ -1216,6 +1218,8 @@ export default function App() {
           <Game
             key={game.song.id + game.ticket}
             {...game}
+            tutorialOpen={tutorial}
+            onPractice={() => setTutorial(true)}
             onFinish={onFinish}
             onExit={() => {
               setGame(null);
@@ -1223,7 +1227,7 @@ export default function App() {
             }}
           />
         ) : (
-          <div className="lobby-content" inert={!entered}>
+          <div className="lobby-content" inert={!entered || tutorial}>
             <header className="app-header">
               <button
                 className="logo-button"
@@ -1909,7 +1913,10 @@ export default function App() {
                 <button onClick={() => setPanel("privacy")}>
                   プライバシー・音源について
                 </button>
-                <small>OFF MUSIC 4.1</small>
+                <button onClick={() => setTutorial(true)}>
+                  操作チュートリアル
+                </button>
+                <small>OFF MUSIC 4.2</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
@@ -1937,7 +1944,7 @@ export default function App() {
           </div>
         )}
         <AnimatePresence>
-          {panel && (
+          {panel && !tutorial && (
             <Sheet
               title={
                 {
@@ -1958,6 +1965,7 @@ export default function App() {
             >
               {panel === "rules" && (
                 <GameRules
+                  onPractice={() => setTutorial(true)}
                   notes={rulesReturn === "song" ? chart : undefined}
                   onBack={
                     rulesReturn === "song" ? () => setPanel("song") : undefined
@@ -2448,6 +2456,7 @@ export default function App() {
                   </details>
                   <GameRules
                     compact
+                    onPractice={() => setTutorial(true)}
                     onMore={() => {
                       setRulesReturn("song");
                       setPanel("rules");
@@ -2624,6 +2633,9 @@ export default function App() {
             </Sheet>
           )}
         </AnimatePresence>
+        {tutorial && (
+          <Tutorial settings={settings} onClose={() => setTutorial(false)} />
+        )}
         {busy && (
           <div className="busy-overlay" role="status">
             <div className="glass">
