@@ -48,6 +48,8 @@ import { Sheet } from "./components/Sheet.tsx";
 import { Game } from "./components/Game.tsx";
 import { GameRules } from "./components/GameRules.tsx";
 import { Tutorial } from "./components/Tutorial.tsx";
+import { AudioFilePicker } from "./components/AudioFilePicker.tsx";
+import { audioFileError } from "./lib/audio-file.ts";
 import {
   readTutorialProgress,
   rememberTutorialProgress,
@@ -260,8 +262,7 @@ export default function App() {
     [aiStyle, setAiStyle] = useState<"balanced" | "flow" | "challenge">(
       "balanced",
     );
-  const fileInput = useRef<HTMLInputElement>(null),
-    tutorialDecision = useRef<TutorialDecision | null>(null),
+  const tutorialDecision = useRef<TutorialDecision | null>(null),
     pullStart = useRef<number | null>(null),
     gateSong = useRef<Song | null>(null),
     userRef = useRef(user),
@@ -962,8 +963,8 @@ export default function App() {
     setUploadProgress(0);
     setBusyText("音源を分析中");
     try {
-      if (uploadFile.size > 20 * 1024 * 1024)
-        throw new Error("音源は20MB以下にしてください");
+      const fileError = audioFileError(uploadFile);
+      if (fileError) throw new Error(fileError);
       const buffer = await decodeAudio(uploadFile);
       if (buffer.duration < 3 || buffer.duration > 600)
         throw new Error("3秒〜10分の音源を選んでください");
@@ -1938,7 +1939,7 @@ export default function App() {
                 <button onClick={() => setTutorial(true)}>
                   操作チュートリアル
                 </button>
-                <small>OFF MUSIC 4.3</small>
+                <small>OFF MUSIC 4.3.1</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
@@ -2277,28 +2278,17 @@ export default function App() {
                   <p>
                     音の立ち上がりを約3ms刻みで検出し、タップ・スライド・フリックの譜面を自動で作ります。
                   </p>
-                  <input
-                    ref={fileInput}
-                    type="file"
-                    accept="audio/*,video/mp4,video/quicktime"
-                    className="hidden-input"
-                    aria-label="音源ファイル"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) {
-                        setUploadFile(f);
-                        setUploadTitle(f.name.replace(/\.[^.]+$/, ""));
-                      }
+                  <AudioFilePicker
+                    file={uploadFile}
+                    disabled={busy}
+                    onSelect={(file) => {
+                      setUploadFile(file);
+                      setUploadTitle(
+                        file ? file.name.replace(/\.[^.]+$/, "") : "",
+                      );
                     }}
+                    onError={notify}
                   />
-                  <button
-                    className="file-drop"
-                    onClick={() => fileInput.current?.click()}
-                  >
-                    <Upload size={28} />
-                    <strong>{uploadFile?.name || "音源を選ぶ"}</strong>
-                    <small>MP3・M4A・WAV・MP4 · 20MB / 10分まで</small>
-                  </button>
                   <label>
                     曲名
                     <input

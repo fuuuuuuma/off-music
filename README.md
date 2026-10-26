@@ -1,4 +1,4 @@
-# OFF MUSIC 4.3
+# OFF MUSIC 4.3.1
 
 白いLiquid Glass UI、12分割の奥行きレーンを直接タッチする横画面音楽ゲーム。
 左上のロゴはOFFとMUSICの間に3本のイコライザーを配置し、音の強弱とリズムを表します。
@@ -94,6 +94,23 @@ Canvas描画・StageSession・許容範囲を本番と共有。案内の音符�
 参考：[Apple Safariの長押しcallout仕様](https://developer.apple.com/library/archive/documentation/AppleApplications/Reference/SafariCSSRef/Articles/StandardCSSProperties.html)、
 [MDNのuser-select](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/user-select)、
 [selectionchange](https://developer.mozilla.org/en-US/docs/Web/API/Document/selectionchange_event)。
+
+## iPhoneでMP3がグレーアウトする場合（4.3.1）
+
+音源選択は.mp3/.m4a/.wavなどの拡張子を明示し、audio/*ワイルドカードを使わない方式へ変更。
+「曲を追加」の「すべてのファイルから選ぶ」はaccept属性を付けずに開く別の選択口です。
+iCloud等で音源が形式判定から外れる場合に使えます。両方ともユーザーのクリックから同期的に開きます。
+
+[WebKit #242110](https://bugs.webkit.org/show_bug.cgi?id=242110)には、iOS Safariでaudio/*が動画として扱われ、
+MP3/M4A/WAVを選べなくする報告があります。本人画像の症状と現在のコードは一致しますが、
+本人端末のiOS版は未確認で、この報告がその端末の直接原因と実機で断定したものではありません。
+[accept仕様](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/accept)上もファイル選択のヒントであり、内容の検査を代替しません。
+「*/*」も指定せず、代替選択ではフィルター自体を省きます。
+
+File.typeが空/汎用でも拒否せず、実データをWeb Audioでデコードしてから解析します。
+空ファイル/20MiB超は選択時に案内し、同じファイルを選び直す操作も可能です。
+読み出し失敗と音声形式の非対応を分け、前者は「ファイル」アプリからのダウンロードを案内。
+3秒〜10分/公開権チェック/認証/バックエンド容量制限は引き続き適用します。
 
 ## 曲の公開・ランキング
 

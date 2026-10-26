@@ -1,0 +1,66 @@
+{
+  "version": "4.3.1",
+  "chartVersion": "lanes-v4.1",
+  "date": "2026-10-26",
+  "tests": {
+    "files": 10,
+    "passed": 138,
+    "newCases": 6
+  },
+  "causeEvidence": {
+    "previousAccept": "audio/*,video/mp4,video/quicktime",
+    "webkitReport": "https://bugs.webkit.org/show_bug.cgi?id=242110",
+    "attribution": "Matches user screenshot and code; not confirmed on actual user iOS version."
+  },
+  "pickerDom": {
+    "primaryAccept": ".mp3,.m4a,.m4b,.wav,.aac,.flac,.ogg,.oga,.opus,.aif,.aiff,.mp4,.mov,.webm",
+    "fallbackAccept": null,
+    "sameFileReselection": true
+  },
+  "browserImport": {
+    "primary": {
+      "source": "licensed fast-vocal, transcoded locally to MP3",
+      "bpm": 133.4,
+      "peaks": 378,
+      "normalNotes": 105,
+      "normalPoints": 135
+    },
+    "fallback": {
+      "source": "licensed slow-vocal, MP3 bytes with .bin filename",
+      "bpm": 106.9,
+      "peaks": 341,
+      "normalNotes": 114,
+      "normalPoints": 149,
+      "finishedGame": {
+        "points": 149,
+        "miss": 149,
+        "score": 0,
+        "xp": 0,
+        "qa": true,
+        "consoleErrors": 0
+      }
+    },
+    "invalidTxt": "decode error, remains in upload panel"
+  },
+  "qa": {
+    "nonPersistent": true,
+    "newSunoGeneration": false,
+    "newPaidServices": false
+  },
+  "limitations": [
+    "Native iPhone iCloud picker has not been operated on the actual device.",
+    "Desktop browser filechooser and decode/chart flow validated; fallback has no native type filter."
+  ],
+  "production": {
+    "worker": "5afe867a-e06c-4a54-afa8-89527f4e4a95",
+    "health": "4.3.1",
+    "viewportWidths": [
+      390,
+      320
+    ],
+    "primaryMp3Explicit": true,
+    "fallbackAccept": null,
+    "horizontalOverflow": false,
+    "ownerResetViaUI": true
+  }
+}

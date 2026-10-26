@@ -969,6 +969,23 @@ select {
   font-size: 9px;
   color: #9c9691;
 }
+.audio-file-picker {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.file-picker-fallback {
+  width: 100%;
+  min-height: 42px;
+  font-size: 11px;
+}
+.file-picker-help {
+  margin: -4px 0 0;
+  text-align: center;
+  color: #9c919f;
+  font-size: 10px;
+  line-height: 1.7;
+}
 .song-sheet-hero {
   display: flex;
   gap: 18px;

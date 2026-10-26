@@ -33,8 +33,16 @@ export function renderedContextTime(at = performance.now()) {
   return c.currentTime - outputLatency() + (at - performance.now()) / 1000;
 }
 export async function decodeAudio(blob: Blob) {
+  let bytes: ArrayBuffer;
   try {
-    return await audioContext().decodeAudioData(await blob.arrayBuffer());
+    bytes = await blob.arrayBuffer();
+  } catch {
+    throw new Error(
+      "ファイルを読み込めませんでした。「ファイル」アプリでダウンロードしてから選び直してください",
+    );
+  }
+  try {
+    return await audioContext().decodeAudioData(bytes);
   } catch {
     throw new Error(
       "この形式の音声を読み込めません。MP3・M4A・WAVをお試しください",
