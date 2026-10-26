@@ -118,7 +118,7 @@ router.post("/progress/uploads", async (c) => {
 router.get("/groups", async (c) => {
   await joinCommunity(c.env.DB, c.get("user").id);
   const rows = await c.env.DB.prepare(
-    "SELECT g.id,g.name,g.owner_id,g.is_community,m.display_name,(SELECT COUNT(*) FROM members WHERE group_id=g.id) AS members FROM groups g JOIN members m ON m.group_id=g.id WHERE m.user_id=? ORDER BY g.created_at",
+    "SELECT g.id,g.name,g.owner_id,g.is_community,m.id AS member_id,m.display_name,(SELECT COUNT(*) FROM members WHERE group_id=g.id) AS members FROM groups g JOIN members m ON m.group_id=g.id WHERE m.user_id=? ORDER BY g.created_at",
   )
     .bind(c.get("user").id)
     .all<{
@@ -127,6 +127,7 @@ router.get("/groups", async (c) => {
       owner_id: string;
       is_community: number;
       display_name: string;
+      member_id: string;
       members: number;
     }>();
   return c.json({
@@ -134,6 +135,7 @@ router.get("/groups", async (c) => {
       id: r.id,
       name: r.name,
       displayName: r.display_name,
+      memberId: r.member_id,
       isCommunity: !!r.is_community,
       owner: r.owner_id === c.get("user").id,
       members: r.members,
@@ -258,9 +260,9 @@ router.get("/groups/:id/songs/:song/analysis", async (c) => {
   if (!(await member(c, c.req.param("id"))))
     return c.json({ error: "ログインして参加してください" }, 403);
   const row = await c.env.DB.prepare(
-    "SELECT analysis FROM group_songs WHERE id=? AND group_id=? AND status='ready'",
+    "SELECT analysis FROM group_songs WHERE id=? AND group_id=? AND (status='ready' OR (status='private' AND creator_id=?))",
   )
-    .bind(c.req.param("song"), c.req.param("id"))
+    .bind(c.req.param("song"), c.req.param("id"), c.get("user").id)
     .first<{ analysis: string }>();
   if (!row) return c.json({ error: "曲が見つかりません" }, 404);
   return c.json({ analysis: JSON.parse(row.analysis) });
@@ -271,7 +273,7 @@ router.get("/groups/:id/discovery", async (c) => {
   if (!(await member(c, scope)))
     return c.json({ error: "ログインして参加してください" }, 403);
   const rows = await c.env.DB.prepare(
-    "SELECT song_id,SUM(plays) AS plays,COUNT(*) AS players,MAX(last_played_at) AS lastPlayedAt FROM song_activity WHERE group_id=? GROUP BY song_id",
+    "SELECT a.song_id,SUM(a.plays) AS plays,COUNT(*) AS players,MAX(a.last_played_at) AS lastPlayedAt FROM song_activity a WHERE a.group_id=? AND (a.song_id IN ('play-pay','glass-circuit') OR EXISTS(SELECT 1 FROM group_songs s WHERE s.id=a.song_id AND s.group_id=a.group_id AND s.status='ready')) GROUP BY a.song_id",
   )
     .bind(scope)
     .all();
@@ -291,6 +293,31 @@ router.post("/groups/:id/songs", async (c) => {
     .bind(groupId, d.hash)
     .first<{ id: string; status: string }>();
   if (existing) {
+    const owner = await c.env.DB.prepare(
+      "SELECT creator_id FROM group_songs WHERE id=?",
+    )
+      .bind(existing.id)
+      .first<{ creator_id: string }>();
+    if (["private", "deleted"].includes(existing.status)) {
+      if (
+        owner?.creator_id === c.get("user").id &&
+        existing.status === "private" &&
+        d.visibility === "private"
+      )
+        return c.json({ id: existing.id, status: "private", owned: true });
+      return c.json(
+        {
+          error:
+            "追加済みの音源です。自分の曲から公開範囲や復元を確認してください",
+        },
+        400,
+      );
+    }
+    if (existing.status === "ready" && d.visibility === "private")
+      return c.json(
+        { error: "追加済みの音源です。自分の曲から公開範囲を変更してください" },
+        400,
+      );
     if (existing.status === "archived") {
       const owner = await c.env.DB.prepare(
         "SELECT creator_id FROM group_songs WHERE id=?",
@@ -298,11 +325,12 @@ router.post("/groups/:id/songs", async (c) => {
         .bind(existing.id)
         .first<{ creator_id: string }>();
       if (owner?.creator_id !== c.get("user").id)
-        return c.json({ error: "この音源は公開を終了しています" }, 409);
+        return c.json({ error: "この音源は公開を終了しています" }, 400);
       await c.env.DB.prepare(
-        "UPDATE group_songs SET status='uploading',title=?,artist=?,analysis=?,created_at=? WHERE id=?",
+        "UPDATE group_songs SET status=?,title=?,artist=?,analysis=?,created_at=? WHERE id=?",
       )
         .bind(
+          d.visibility === "private" ? "uploading-private" : "uploading",
           d.title,
           d.artist,
           JSON.stringify(d.analysis),
@@ -313,11 +341,17 @@ router.post("/groups/:id/songs", async (c) => {
     }
     return c.json({
       id: existing.id,
-      status: existing.status === "archived" ? "uploading" : existing.status,
+      status:
+        existing.status === "archived"
+          ? d.visibility === "private"
+            ? "uploading-private"
+            : "uploading"
+          : existing.status,
+      owned: owner?.creator_id === c.get("user").id,
     });
   }
   const row = await c.env.DB.prepare(
-    "INSERT INTO group_songs(id,group_id,creator_id,title,artist,duration,bpm,analysis,content_hash,size,media_key,status,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,'uploading',? WHERE (SELECT COUNT(*) FROM group_songs WHERE group_id=? AND status!='archived')<? AND COALESCE((SELECT SUM(size) FROM group_songs WHERE group_id=?),0)+?<=209715200 AND COALESCE((SELECT SUM(size) FROM group_songs),0)+?<=524288000 RETURNING id",
+    "INSERT INTO group_songs(id,group_id,creator_id,title,artist,duration,bpm,analysis,content_hash,size,media_key,status,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM group_songs WHERE group_id=? AND status!='archived')<? AND COALESCE((SELECT SUM(size) FROM group_songs WHERE group_id=?),0)+?<=209715200 AND COALESCE((SELECT SUM(size) FROM group_songs),0)+?<=524288000 RETURNING id",
   )
     .bind(
       id,
@@ -331,6 +365,7 @@ router.post("/groups/:id/songs", async (c) => {
       d.hash,
       d.size,
       groupId + "/" + id,
+      d.visibility === "private" ? "uploading-private" : "uploading",
       Date.now(),
       groupId,
       groupId === COMMUNITY_ID ? 100 : 20,
@@ -344,7 +379,11 @@ router.post("/groups/:id/songs", async (c) => {
       { error: "共有音源の保存上限です（20曲・グループ200MB）" },
       429,
     );
-  return c.json({ id, status: "uploading" });
+  return c.json({
+    id,
+    status: d.visibility === "private" ? "uploading-private" : "uploading",
+    owned: true,
+  });
 });
 router.put("/groups/:id/songs/:song/audio", async (c) => {
   const groupId = c.req.param("id");
@@ -356,7 +395,10 @@ router.put("/groups/:id/songs/:song/audio", async (c) => {
     .bind(c.req.param("song"), groupId, c.get("user").id)
     .first<any>();
   if (!s) return c.json({ error: "音源が見つかりません" }, 404);
-  if (s.status === "ready") return c.json({ ok: true });
+  if (s.status === "ready" || s.status === "private")
+    return c.json({ ok: true });
+  if (!["uploading", "uploading-private"].includes(s.status))
+    return c.json({ error: "この曲はアップロードできない状態です" }, 400);
   const data = await c.req.arrayBuffer();
   if (data.byteLength !== s.size)
     return c.json({ error: "ファイルサイズが一致しません" }, 400);
@@ -369,9 +411,16 @@ router.put("/groups/:id/songs/:song/audio", async (c) => {
   await c.env.MEDIA.put(s.media_key, data, {
     httpMetadata: { contentType: "application/octet-stream" },
   });
-  await c.env.DB.prepare("UPDATE group_songs SET status='ready' WHERE id=?")
-    .bind(s.id)
-    .run();
+  const updated = await c.env.DB.prepare(
+    "UPDATE group_songs SET status=? WHERE id=? AND status=? RETURNING id",
+  )
+    .bind(
+      s.status === "uploading-private" ? "private" : "ready",
+      s.id,
+      s.status,
+    )
+    .first();
+  if (!updated) return c.json({ error: "曲の状態が変わりました" }, 400);
   await broadcast(c, groupId, { type: "songs.changed" });
   return c.json({ ok: true });
 });
@@ -380,9 +429,9 @@ router.get("/groups/:id/songs/:song/audio", async (c) => {
   if (!(await member(c, groupId)))
     return c.json({ error: "グループに参加してください" }, 403);
   const s = await c.env.DB.prepare(
-    "SELECT media_key FROM group_songs WHERE id=? AND group_id=? AND status='ready'",
+    "SELECT media_key FROM group_songs WHERE id=? AND group_id=? AND (status='ready' OR (status='private' AND creator_id=?))",
   )
-    .bind(c.req.param("song"), groupId)
+    .bind(c.req.param("song"), groupId, c.get("user").id)
     .first<{ media_key: string }>();
   if (!s) return c.json({ error: "音源が見つかりません" }, 404);
   const object = await c.env.MEDIA.get(s.media_key);
@@ -408,12 +457,12 @@ router.get("/groups/:id/rankings", async (c) => {
     return c.json({ error: "難易度を確認してください" }, 400);
   const rows = song
     ? await c.env.DB.prepare(
-        "SELECT m.id AS memberId,m.display_name AS name,l.score,l.accuracy,l.max_combo AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM leaderboard_v3 l JOIN members m ON m.group_id=l.group_id AND m.user_id=l.user_id LEFT JOIN progress p ON p.user_id=m.user_id WHERE l.chart_version=? AND l.group_id=? AND l.song_id=? AND l.difficulty=? ORDER BY l.score DESC,l.max_combo DESC,l.updated_at ASC LIMIT 50",
+        "SELECT m.id AS memberId,m.display_name AS name,l.score,l.accuracy,l.max_combo AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM leaderboard_v3 l JOIN members m ON m.group_id=l.group_id AND m.user_id=l.user_id LEFT JOIN progress p ON p.user_id=m.user_id WHERE l.chart_version=? AND l.group_id=? AND l.song_id=? AND l.difficulty=? AND (l.song_id IN ('play-pay','glass-circuit') OR EXISTS(SELECT 1 FROM group_songs s WHERE s.id=l.song_id AND s.group_id=l.group_id AND s.status='ready')) ORDER BY l.score DESC,l.max_combo DESC,l.updated_at ASC LIMIT 50",
       )
         .bind(CHART_VERSION, groupId, song, difficulty)
         .all<any>()
     : await c.env.DB.prepare(
-        "SELECT m.id AS memberId,m.display_name AS name,COALESCE(SUM(l.score*CASE l.difficulty WHEN 'easy' THEN .6 WHEN 'hard' THEN 1.3 WHEN 'expert' THEN 1.6 WHEN 'master' THEN 1.8 ELSE 1 END),0) AS score,COALESCE(AVG(l.accuracy),0) AS accuracy,COALESCE(MAX(l.max_combo),0) AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM members m LEFT JOIN leaderboard_v3 l ON l.group_id=m.group_id AND l.user_id=m.user_id AND l.chart_version=? LEFT JOIN progress p ON p.user_id=m.user_id WHERE m.group_id=? GROUP BY m.user_id ORDER BY score DESC,xp DESC,m.joined_at ASC LIMIT 50",
+        "SELECT m.id AS memberId,m.display_name AS name,COALESCE(SUM(l.score*CASE l.difficulty WHEN 'easy' THEN .6 WHEN 'hard' THEN 1.3 WHEN 'expert' THEN 1.6 WHEN 'master' THEN 1.8 ELSE 1 END),0) AS score,COALESCE(AVG(l.accuracy),0) AS accuracy,COALESCE(MAX(l.max_combo),0) AS maxCombo,COALESCE(p.xp,0) AS xp,m.user_id FROM members m LEFT JOIN leaderboard_v3 l ON l.group_id=m.group_id AND l.user_id=m.user_id AND l.chart_version=? AND (l.song_id IN ('play-pay','glass-circuit') OR EXISTS(SELECT 1 FROM group_songs s WHERE s.id=l.song_id AND s.group_id=l.group_id AND s.status='ready')) LEFT JOIN progress p ON p.user_id=m.user_id WHERE m.group_id=? GROUP BY m.user_id ORDER BY score DESC,xp DESC,m.joined_at ASC LIMIT 50",
       )
         .bind(CHART_VERSION, groupId)
         .all<any>();
@@ -451,13 +500,16 @@ router.post("/plays", async (c) => {
   if (group && !(await member(c, group)))
     return c.json({ error: "グループに参加してください" }, 403);
   let canonical = builtins[d.songId];
+  let privateSong = false;
   if (!canonical && group) {
     const r = await c.env.DB.prepare(
-      "SELECT title,analysis FROM group_songs WHERE id=? AND group_id=? AND status='ready'",
+      "SELECT title,analysis,status FROM group_songs WHERE id=? AND group_id=? AND (status='ready' OR (status='private' AND creator_id=?))",
     )
-      .bind(d.songId, group)
-      .first<{ title: string; analysis: string }>();
-    if (r) canonical = { title: r.title, analysis: JSON.parse(r.analysis) };
+      .bind(d.songId, group, c.get("user").id)
+      .first<{ title: string; analysis: string; status: string }>();
+    if (!r) return c.json({ error: "この曲は再生できません" }, 404);
+    privateSong = r.status === "private";
+    canonical = { title: r.title, analysis: JSON.parse(r.analysis) };
   }
   const practice = d.practice || !canonical || d.speed !== 1,
     notes = practice
@@ -487,7 +539,7 @@ router.post("/plays", async (c) => {
       d.speed,
       CHART_VERSION,
       JSON.stringify(notes),
-      !practice && !!group ? 1 : 0,
+      !practice && !!group && !privateSong ? 1 : 0,
       Date.now(),
       c.get("user").id,
       Date.now() - 86400000,
@@ -502,7 +554,7 @@ router.post("/plays", async (c) => {
   await c.env.DB.prepare("DELETE FROM plays WHERE user_id=? AND started_at<?")
     .bind(c.get("user").id, Date.now() - 7 * 86400000)
     .run();
-  return c.json({ ticket: id, ranked: !practice && !!group });
+  return c.json({ ticket: id, ranked: !practice && !!group && !privateSong });
 });
 router.post("/plays/:ticket/finish", async (c) => {
   const d = replaySchema.parse(await c.req.json());
@@ -524,6 +576,23 @@ router.post("/plays/:ticket/finish", async (c) => {
     );
   if (p.group_id && !(await member(c, p.group_id)))
     return c.json({ error: "グループに参加してください" }, 403);
+  if (p.group_id && !builtins[p.song_id]) {
+    const current = await c.env.DB.prepare(
+      "SELECT status,creator_id FROM group_songs WHERE id=? AND group_id=?",
+    )
+      .bind(p.song_id, p.group_id)
+      .first<any>();
+    if (
+      !current ||
+      (current.status !== "ready" &&
+        !(
+          current.status === "private" &&
+          current.creator_id === c.get("user").id
+        ))
+    )
+      return c.json({ error: "この曲は公開を終了しました" }, 404);
+    if (current.status === "private") p.ranked = 0;
+  }
   const elapsed = (Date.now() - p.started_at) / 1000;
   if (elapsed < p.duration / p.speed - 1 || elapsed > 7200)
     return c.json(

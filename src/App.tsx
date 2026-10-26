@@ -58,6 +58,11 @@ import {
 import { Mascot, Mascots } from "./components/Mascots.tsx";
 import { Calibration } from "./components/Calibration.tsx";
 import { GoogleButton } from "./components/GoogleButton.tsx";
+import {
+  OwnedSongs,
+  SongManager,
+  type SongAction,
+} from "./components/SongLibrary.tsx";
 import { Community } from "./components/Community.tsx";
 import {
   analyzeAudio,
@@ -114,6 +119,8 @@ type Panel =
   | "song"
   | "login"
   | "privacy"
+  | "my-songs"
+  | "song-manage"
   | "rules"
   | null;
 type GameData = {
@@ -217,13 +224,16 @@ export default function App() {
     [initialError, setInitialError] = useState(""),
     [entered, setEntered] = useState(false),
     [songs, setSongs] = useState<Song[]>([]),
-    [groupSongs, setGroupSongs] = useState<Song[]>([]),
     [communitySongs, setCommunitySongs] = useState<Song[]>([]),
+    [ownedSongs, setOwnedSongs] = useState<Song[]>([]),
+    [managedSong, setManagedSong] = useState<Song | null>(null),
     [songOrder, setSongOrder] = useState<SongOrder>("recommended"),
     [songStats, setSongStats] = useState<
       Record<string, { plays: number; players: number }>
     >({}),
-    [uploadMode, setUploadMode] = useState<"public" | "local">("public"),
+    [uploadMode, setUploadMode] = useState<"public" | "private" | "local">(
+      "public",
+    ),
     [publicRights, setPublicRights] = useState(false),
     [publicName, setPublicName] = useState(""),
     [results, setResults] = useState<Result[]>([]),
@@ -232,7 +242,6 @@ export default function App() {
     [clientId, setClientId] = useState(""),
     [progress, setProgress] = useState<Progress>(progression()),
     [groups, setGroups] = useState<Group[]>([]),
-    [groupId, setGroupId] = useState(localStorage.getItem("off-group") || ""),
     [tab, setTab] = useState<"library" | "ranking" | "profile">("library"),
     [panel, setPanel] = useState<Panel>(null),
     [rulesReturn, setRulesReturn] = useState<"song" | null>(null),
@@ -256,8 +265,6 @@ export default function App() {
     [uploadTitle, setUploadTitle] = useState(""),
     [uploadArtist, setUploadArtist] = useState(""),
     [uploadFile, setUploadFile] = useState<File | null>(null),
-    [shareGroup, setShareGroup] = useState(""),
-    [rights, setRights] = useState(false),
     [syncing, setSyncing] = useState(false),
     [aiStyle, setAiStyle] = useState<"balanced" | "flow" | "challenge">(
       "balanced",
@@ -285,7 +292,11 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
   const allSongs = useMemo(() => {
-    const combined = [...songs, ...communitySongs, ...groupSongs];
+    const combined = [
+      ...songs,
+      ...ownedSongs.filter((s) => s.visibility !== "deleted"),
+      ...communitySongs,
+    ];
     return combined
       .filter(
         (song, i) => combined.findIndex((other) => other.id === song.id) === i,
@@ -295,7 +306,7 @@ export default function App() {
         playCount: songStats[song.id]?.plays || 0,
         playerCount: songStats[song.id]?.players || 0,
       }));
-  }, [songs, communitySongs, groupSongs, songStats]);
+  }, [songs, communitySongs, ownedSongs, songStats]);
   const chart = useMemo(
     () =>
       selected
@@ -322,11 +333,6 @@ export default function App() {
     setGroups(r.groups);
     setPublicName(
       r.groups.find((g) => g.id === COMMUNITY_ID)?.displayName || "",
-    );
-    setGroupId((previous) =>
-      r.groups.some((g) => g.id === previous)
-        ? previous
-        : r.groups.find((g) => g.isCommunity)?.id || r.groups[0]?.id || "",
     );
   }
   async function loadProfile() {
@@ -434,7 +440,6 @@ export default function App() {
       setUser(null);
       userRef.current = null;
       setGroups([]);
-      setGroupSongs([]);
       setCommunitySongs([]);
       store.guestProgress().then((p) => setProgress(p || progression()));
       notify("ログイン状態が変わりました。もう一度ログインしてください");
@@ -448,126 +453,109 @@ export default function App() {
   useEffect(() => {
     if (entered && !game) setAmbience(settings.ambient ?? 0.055);
   }, [entered, settings.ambient, game]);
-  useEffect(() => {
-    localStorage.setItem("off-group", groupId);
-    if (!user) {
-      setGroupSongs([]);
-      setCommunitySongs([]);
+  async function refreshOwned() {
+    if (!userRef.current) {
+      setOwnedSongs([]);
       return;
     }
+    const { songs: mine } = await api<{ songs: Song[] }>("/me/songs");
+    setOwnedSongs(mine);
+    return mine;
+  }
+  useEffect(() => {
     let active = true;
-    const scopes = [
-      COMMUNITY_ID,
-      ...(groupId && groupId !== COMMUNITY_ID ? [groupId] : []),
-    ];
-    Promise.all(
-      scopes.map(async (scope) => ({
-        scope,
-        ...(await api<{ songs: Song[] }>(`/me/groups/${scope}/songs`)),
-      })),
-    )
-      .then((list) => {
+    Promise.all([
+      api<{ songs: Song[] }>("/catalog/songs"),
+      user
+        ? api<{ songs: Song[] }>("/me/songs")
+        : Promise.resolve({ songs: [] }),
+    ])
+      .then(([publicList, mine]) => {
         if (!active) return;
-        setCommunitySongs(
-          list.find((x) => x.scope === COMMUNITY_ID)?.songs || [],
-        );
-        setGroupSongs(
-          list.find((x) => x.scope === groupId && x.scope !== COMMUNITY_ID)
-            ?.songs || [],
-        );
+        setCommunitySongs(publicList.songs);
+        setOwnedSongs(mine.songs);
+        const playing = gameRef.current;
+        if (
+          playing?.song.groupId === COMMUNITY_ID &&
+          !playing.song.owned &&
+          !publicList.songs.some((s) => s.id === playing.song.id)
+        ) {
+          setGame(null);
+          notify("この曲は公開を終了しました");
+        }
       })
       .catch((e) => notify(e.message));
     return () => {
       active = false;
     };
-  }, [user?.id, groupId, songRevision]);
+  }, [user?.id, songRevision]);
   useEffect(() => {
-    if (!user) return;
     let active = true;
-    const scopes = [
-      COMMUNITY_ID,
-      ...(groupId && groupId !== COMMUNITY_ID ? [groupId] : []),
-    ];
-    Promise.all(
-      scopes.map((scope) =>
-        api<{ stats: { song_id: string; plays: number; players: number }[] }>(
-          `/me/groups/${scope}/discovery`,
-        ),
-      ),
+    api<{ stats: { song_id: string; plays: number; players: number }[] }>(
+      "/catalog/discovery",
     )
-      .then((values) => {
-        if (!active) return;
-        const map: Record<string, { plays: number; players: number }> = {};
-        for (const value of values)
-          for (const stat of value.stats) {
-            const old = map[stat.song_id] || { plays: 0, players: 0 };
-            map[stat.song_id] = {
-              plays: old.plays + stat.plays,
-              players: old.players + stat.players,
-            };
-          }
-        setSongStats(map);
+      .then((value) => {
+        if (active)
+          setSongStats(
+            Object.fromEntries(
+              value.stats.map((s) => [
+                s.song_id,
+                { plays: s.plays, players: s.players },
+              ]),
+            ),
+          );
       })
-      .catch((e) => notify(e.message));
+      .catch(() => {});
     return () => {
       active = false;
     };
-  }, [user?.id, groupId, revision]);
+  }, [revision]);
   useEffect(() => {
-    if (!user) return;
-    let stopped = false;
-    const cleanups: (() => void)[] = [];
-    for (const scope of [...new Set([COMMUNITY_ID, groupId].filter(Boolean))]) {
-      let socket: WebSocket | undefined,
-        timer: ReturnType<typeof setTimeout>,
-        heartbeat: ReturnType<typeof setInterval>,
+    let stopped = false,
+      socket: WebSocket | undefined,
+      timer: ReturnType<typeof setTimeout>,
+      heartbeat: ReturnType<typeof setInterval>,
+      attempt = 0;
+    const connect = () => {
+      setLive("connecting");
+      socket = new WebSocket(
+        `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/catalog/live`,
+      );
+      socket.onopen = () => {
         attempt = 0;
-      function connect() {
-        if (scope === (groupId || COMMUNITY_ID)) setLive("connecting");
-        socket = new WebSocket(
-          `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/me/groups/${scope}/live`,
-        );
-        socket.onopen = () => {
-          attempt = 0;
-          if (scope === (groupId || COMMUNITY_ID)) setLive("live");
-          setRevision((r) => r + 1);
-          setSongRevision((r) => r + 1);
-          heartbeat = setInterval(() => {
-            if (socket?.readyState === 1) socket.send("ping");
-          }, 25000);
-        };
-        socket.onmessage = (e) => {
-          try {
-            const event = JSON.parse(e.data);
-            if (event.type?.endsWith(".changed")) {
-              setRevision((r) => r + 1);
-              if (event.type === "songs.changed") setSongRevision((r) => r + 1);
-              if (event.type === "members.changed")
-                loadGroups().catch(() => {});
-            }
-          } catch {}
-        };
-        socket.onclose = () => {
-          clearInterval(heartbeat);
-          if (!stopped) {
-            if (scope === (groupId || COMMUNITY_ID)) setLive("reconnecting");
-            timer = setTimeout(connect, Math.min(30000, 1000 * 2 ** attempt++));
+        setLive("live");
+        setRevision((v) => v + 1);
+        setSongRevision((v) => v + 1);
+        heartbeat = setInterval(() => {
+          if (socket?.readyState === 1) socket.send("ping");
+        }, 25000);
+      };
+      socket.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type?.endsWith(".changed")) {
+            setRevision((v) => v + 1);
+            if (event.type === "songs.changed") setSongRevision((v) => v + 1);
           }
-        };
-        socket.onerror = () => socket?.close();
-      }
-      connect();
-      cleanups.push(() => {
-        clearTimeout(timer);
+        } catch {}
+      };
+      socket.onclose = () => {
         clearInterval(heartbeat);
-        socket?.close();
-      });
-    }
+        if (!stopped) {
+          setLive("reconnecting");
+          timer = setTimeout(connect, Math.min(30000, 1000 * 2 ** attempt++));
+        }
+      };
+      socket.onerror = () => socket?.close();
+    };
+    connect();
     return () => {
       stopped = true;
-      cleanups.forEach((f) => f());
+      clearTimeout(timer);
+      clearInterval(heartbeat);
+      socket?.close();
     };
-  }, [user?.id, groupId]);
+  }, []);
   useEffect(() => {
     if (!QA_MODE && !difficultyUnlocked(progress.level, difficulty))
       setDifficulty("normal");
@@ -621,7 +609,7 @@ export default function App() {
       setBusyText("譜面を準備中");
       try {
         const { analysis } = await api<{ analysis: Analysis }>(
-          `/me/groups/${song.groupId}/songs/${song.id}/analysis`,
+          songAnalysisPath(song),
         );
         const loaded = { ...song, analysis, analysisLoaded: true };
         setSelected(loaded);
@@ -651,8 +639,7 @@ export default function App() {
     }
     setBusy(true);
     setBusyText("音源を準備中");
-    const playGroup =
-      song.groupId || (user ? groupId || COMMUNITY_ID : undefined);
+    const playGroup = song.groupId || (user ? COMMUNITY_ID : undefined);
     if (
       matchMedia("(pointer: coarse)").matches &&
       document.documentElement.requestFullscreen
@@ -670,9 +657,9 @@ export default function App() {
     try {
       await unlockAudio();
       let current = song;
-      if (song.groupId && !song.analysisLoaded) {
+      if (song.groupId) {
         const { analysis } = await api<{ analysis: Analysis }>(
-          `/me/groups/${song.groupId}/songs/${song.id}/analysis`,
+          songAnalysisPath(song),
         );
         current = {
           ...song,
@@ -883,7 +870,6 @@ export default function App() {
       userRef.current = null;
       setUser(null);
       setGroups([]);
-      setGroupSongs([]);
       setCommunitySongs([]);
       setResults(await store.results());
       setProgress((await store.guestProgress()) || progression());
@@ -894,7 +880,12 @@ export default function App() {
       notify((e as Error).message);
     }
   }
-  async function publishSong(song: Song, scope: string, blob: Blob) {
+  async function publishSong(
+    song: Song,
+    scope: string,
+    blob: Blob,
+    visibility: "public" | "private" = "public",
+  ) {
     const bytes = await blob.arrayBuffer(),
       hash =
         song.hash ||
@@ -907,7 +898,7 @@ export default function App() {
         typeof v === "number" ? Math.round(v * 10000) / 10000 : v,
       ),
     );
-    const r = await api<{ id: string; status: string }>(
+    const r = await api<{ id: string; status: string; owned: boolean }>(
       `/me/groups/${scope}/songs`,
       {
         title: song.title,
@@ -915,10 +906,11 @@ export default function App() {
         hash,
         size: blob.size,
         analysis,
-        rightsConfirmed: true,
+        rightsConfirmed: visibility === "public",
+        visibility,
       },
     );
-    if (r.status !== "ready") {
+    if (r.status !== "ready" && r.status !== "private") {
       const response = await fetch(
         `/api/me/groups/${scope}/songs/${r.id}/audio`,
         {
@@ -948,6 +940,8 @@ export default function App() {
       groupId: scope,
       canonical: true,
       analysisLoaded: true,
+      owned: r.owned,
+      visibility,
       source: `/api/me/groups/${scope}/songs/${r.id}/audio`,
       blob,
     };
@@ -990,14 +984,15 @@ export default function App() {
         hash,
         analysisLoaded: true,
       };
-      if (publicly) {
-        setBusyText("みんなの曲に公開中");
-        song = await publishSong(song, COMMUNITY_ID, uploadFile);
-        setCommunitySongs((prev) => [
+      if (user && uploadMode !== "local" && !QA_MODE) {
+        setBusyText(publicly ? "みんなの曲に公開中" : "非公開で保存中");
+        song = await publishSong(
           song,
-          ...prev.filter((x) => x.id !== song.id),
-        ]);
-        setGroupId(COMMUNITY_ID);
+          COMMUNITY_ID,
+          uploadFile,
+          uploadMode === "private" ? "private" : "public",
+        );
+        await refreshOwned();
       } else {
         const duplicate = songs.find((s) => s.hash === hash);
         if (duplicate) {
@@ -1037,70 +1032,10 @@ export default function App() {
           ? "テスト音源を準備しました · 保存・公開なし"
           : publicly
             ? "みんなの曲に公開しました"
-            : "音源を解析して追加しました",
+            : uploadMode === "private" && user
+              ? "非公開で保存しました"
+              : "音源を解析して追加しました",
       );
-    } catch (e) {
-      notify((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function shareSong() {
-    if (!selected || !shareGroup || !rights || !user || busy) return;
-    if (QA_MODE) {
-      notify("テスト音源は公開・共有しません");
-      return;
-    }
-    setBusy(true);
-    setBusyText("グループに音源を共有中");
-    try {
-      const blob =
-          selected.blob ||
-          (await fetch(selected.source!).then((r) => r.blob())),
-        bytes = await blob!.arrayBuffer(),
-        hash = Array.from(
-          new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-          (v) => v.toString(16).padStart(2, "0"),
-        ).join("");
-      const analysis = JSON.parse(
-        JSON.stringify(selected.analysis, (_k, v) =>
-          typeof v === "number" ? Math.round(v * 10000) / 10000 : v,
-        ),
-      );
-      const r = await api<{ id: string; status: string }>(
-        `/me/groups/${shareGroup}/songs`,
-        {
-          title: selected.title,
-          artist: selected.artist,
-          hash,
-          size: blob!.size,
-          analysis,
-          rightsConfirmed: true,
-        },
-      );
-      if (r.status !== "ready") {
-        const response = await fetch(
-          `/api/me/groups/${shareGroup}/songs/${r.id}/audio`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/octet-stream",
-              "X-Off-Music": "1",
-              "X-Off-User": user.id,
-            },
-            body: blob,
-          },
-        );
-        if (!response.ok)
-          throw new Error(
-            (await response.json()).error || "共有できませんでした",
-          );
-      }
-      setGroupId(shareGroup);
-      setSongRevision((v) => v + 1);
-      setRevision((v) => v + 1);
-      notify("グループに音源を共有しました");
-      setRights(false);
     } catch (e) {
       notify((e as Error).message);
     } finally {
@@ -1145,7 +1080,6 @@ export default function App() {
       setResults([]);
       setProgress(progression());
       setDifficulty("normal");
-      setGroupId(COMMUNITY_ID);
       setSelected(null);
       setFinished(null);
       setSettings((prev) => ({ ...prev, theme: "pearl" }));
@@ -1187,6 +1121,73 @@ export default function App() {
       notify("表示名を保存しました");
     } catch (e) {
       notify((e as Error).message);
+    }
+  }
+  function songAnalysisPath(song: Song) {
+    return song.source?.startsWith("/api/catalog/")
+      ? `/catalog/songs/${song.id}/analysis`
+      : `/me/groups/${song.groupId}/songs/${song.id}/analysis`;
+  }
+  async function manageSong(song: Song, action: SongAction, rights = false) {
+    if (song.builtin || (song.groupId && !song.owned)) return;
+    if (action === "public" && !rights) {
+      notify("配信・再配布の権利を確認してください");
+      return;
+    }
+    if (!song.groupId && action === "delete") {
+      await removeSong(song);
+      setPanel("my-songs");
+      return;
+    }
+    if (!user) {
+      setPanel("login");
+      return;
+    }
+    if (QA_MODE) {
+      notify("QAでは公開・非公開・削除を保存しません");
+      return;
+    }
+    setBusy(true);
+    setBusyText("曲を更新中");
+    try {
+      if (!song.groupId) {
+        if (action !== "public" && action !== "private") return;
+        const blob =
+          song.blob ||
+          (await fetch(song.source!).then((r) => {
+            if (!r.ok) throw new Error("音源を読み込めません");
+            return r.blob();
+          }));
+        if (!blob) throw new Error("音源を読み込めません");
+        await publishSong(song, COMMUNITY_ID, blob, action);
+        await store.deleteSong(song.id);
+        setSongs((prev) => prev.filter((s) => s.id !== song.id));
+      } else if (action === "delete")
+        await api(`/me/songs/${song.id}`, {}, "DELETE");
+      else if (action === "restore")
+        await api(`/me/songs/${song.id}/restore`, {});
+      else
+        await api(
+          `/me/songs/${song.id}`,
+          { visibility: action, rightsConfirmed: rights },
+          "PATCH",
+        );
+      await refreshOwned();
+      setSongRevision((v) => v + 1);
+      setRevision((v) => v + 1);
+      setPanel("my-songs");
+      notify(
+        {
+          public: "全員に公開しました",
+          private: "非公開にしました",
+          delete: "削除しました。最近削除した曲から復元できます",
+          restore: "非公開で復元しました",
+        }[action],
+      );
+    } catch (e) {
+      notify((e as Error).message);
+    } finally {
+      setBusy(false);
     }
   }
   async function removeSong(song: Song) {
@@ -1540,7 +1541,7 @@ export default function App() {
                       <Cloud size={20} />
                       <span>
                         <strong>ゲストでプレイ中</strong>
-                        <small>ログインでレベル保存・グループランキング</small>
+                        <small>ログインでレベル保存・公開ランキング</small>
                       </span>
                       <ChevronRight size={17} />
                     </button>
@@ -1566,6 +1567,19 @@ export default function App() {
                         <Plus size={17} />
                         曲を追加
                       </button>
+                    </div>
+                    <div className="library-actions">
+                      <button
+                        className="quiet"
+                        onClick={() => {
+                          refreshOwned().catch((e) => notify(e.message));
+                          setPanel("my-songs");
+                        }}
+                      >
+                        <Settings2 size={16} />
+                        自分の曲
+                      </button>
+                      <span>公開曲はゲストもプレイできます</span>
                     </div>
                     <div
                       className="discovery-tabs"
@@ -1705,11 +1719,13 @@ export default function App() {
                                 <strong>{s.title}</strong>
                                 <span>
                                   {s.artist || "MY AUDIO"}
-                                  {s.groupId === COMMUNITY_ID
-                                    ? " · みんなの曲"
-                                    : s.groupId
-                                      ? " · グループ限定"
-                                      : ""}
+                                  {s.visibility === "private"
+                                    ? " · 非公開"
+                                    : s.groupId === COMMUNITY_ID
+                                      ? " · みんなの曲"
+                                      : s.groupId
+                                        ? " · グループ限定"
+                                        : ""}
                                 </span>
                                 <div className="song-details">
                                   <small>{time(s.duration)}</small>
@@ -1766,17 +1782,14 @@ export default function App() {
                 </>
               ) : tab === "ranking" ? (
                 <Community
-                  groups={groups}
-                  selected={groupId}
-                  onSelect={setGroupId}
-                  onReload={loadGroups}
-                  notify={notify}
                   songs={allSongs.filter(
-                    (s) => s.builtin || s.groupId === groupId,
+                    (s) => s.builtin || s.visibility === "public",
                   )}
                   revision={revision}
                   status={live}
-                  initialCode={invite === "reset-none" ? "" : invite}
+                  myMemberId={
+                    groups.find((g) => g.id === COMMUNITY_ID)?.memberId
+                  }
                   onLogin={!user ? () => setPanel("login") : undefined}
                 />
               ) : (
@@ -1939,7 +1952,7 @@ export default function App() {
                 <button onClick={() => setTutorial(true)}>
                   操作チュートリアル
                 </button>
-                <small>OFF MUSIC 4.3.1</small>
+                <small>OFF MUSIC 4.4.0</small>
               </footer>
             </main>
             <nav className="bottom-nav glass" aria-label="メインメニュー">
@@ -1979,13 +1992,45 @@ export default function App() {
                   login: "プレイ方法を選択",
                   privacy: "プライバシー・音源",
                   rules: "ルール・得点",
+                  "my-songs": "自分の曲",
+                  "song-manage": "曲を管理",
                 }[panel]
               }
               onClose={() => {
-                setPanel(panel === "rules" ? rulesReturn : null);
+                setPanel(
+                  panel === "rules"
+                    ? rulesReturn
+                    : panel === "song-manage"
+                      ? "my-songs"
+                      : null,
+                );
                 gateSong.current = null;
               }}
             >
+              {panel === "my-songs" && (
+                <OwnedSongs
+                  songs={[
+                    ...songs.filter((s) => !s.builtin && !s.groupId),
+                    ...ownedSongs,
+                  ]}
+                  onManage={(song) => {
+                    setManagedSong(song);
+                    setPanel("song-manage");
+                  }}
+                />
+              )}
+              {panel === "song-manage" && managedSong && (
+                <SongManager
+                  key={managedSong.id}
+                  song={managedSong}
+                  busy={busy}
+                  loggedIn={!!user}
+                  onAction={manageSong}
+                  onPlay={chooseSong}
+                  onBack={() => setPanel("my-songs")}
+                  onLogin={() => setPanel("login")}
+                />
+              )}
               {panel === "rules" && (
                 <GameRules
                   onPractice={() => setTutorial(true)}
@@ -2201,7 +2246,7 @@ export default function App() {
                         <details className="reset-controls">
                           <summary>プレイ・追加曲のリセット</summary>
                           <p>
-                            自分のスコア・XP・ランキングと、自分が追加した公開/限定曲、この端末の追加曲をリセットします。収録曲・ログイン・音量とタイミング設定は残ります。直前のリセットは復元できます。
+                            自分のスコア・XP・ランキングと、自分が追加した公開・非公開の曲、この端末の追加曲をリセットします。収録曲・ログイン・音量とタイミング設定は残ります。直前のリセットは復元できます。
                           </p>
                           <button
                             className="quiet wide"
@@ -2237,11 +2282,11 @@ export default function App() {
                         </li>
                         <li>
                           <Check size={16} />
-                          みんなの曲・リアルタイムランキング
+                          公開ランキングへ記録・リアルタイム更新
                         </li>
                         <li>
                           <Check size={16} />
-                          曲の自動公開とWorkers AIアレンジ
+                          音源の公開・非公開管理とWorkers AIアレンジ
                         </li>
                       </ul>
                       {clientId ? (
@@ -2267,7 +2312,7 @@ export default function App() {
                         ログインせずに遊ぶ <ArrowRight size={16} />
                       </button>
                       <small>
-                        ゲストでも収録曲のプレイ・曲追加・レベルアップが可能です。記録はこのブラウザだけに保存されます。
+                        ゲストも収録曲と全員の公開曲を遊べます。曲追加・記録・レベルはこのブラウザに保存されます。
                       </small>
                     </>
                   )}
@@ -2320,19 +2365,24 @@ export default function App() {
                           aria-label="音源の追加先"
                           value={uploadMode}
                           onChange={(e) => {
-                            setUploadMode(e.target.value as "public" | "local");
+                            setUploadMode(
+                              e.target.value as "public" | "private" | "local",
+                            );
                             setPublicRights(false);
                           }}
                         >
                           <option value="public">
-                            みんなの曲 · Googleログイン全員
+                            公開 · サイト利用者全員
                           </option>
+                          <option value="private">非公開 · 自分だけ</option>
                           <option value="local">この端末だけ</option>
                         </select>
                         <p>
                           {uploadMode === "public"
-                            ? "解析後、音源と譜面をGoogleログインした全ユーザーへ公開します。"
-                            : "音源はこのブラウザ内だけに保存します。"}
+                            ? "解析後、ログインしていない人も含め、サイト利用者全員が遊べます。"
+                            : uploadMode === "private"
+                              ? "ログインした本人だけが再生できます。"
+                              : "音源はこのブラウザ内だけに保存します。"}
                         </p>
                         {uploadMode === "public" && (
                           <label className="checkbox-label">
@@ -2343,7 +2393,7 @@ export default function App() {
                                 setPublicRights(e.target.checked)
                               }
                             />
-                            この音源を全ユーザーへ配信・再配布できる権利があります
+                            この音源をサイト利用者全員へ配信・再配布できる権利があります
                           </label>
                         )}
                       </>
@@ -2381,13 +2431,15 @@ export default function App() {
                     </div>
                     <div>
                       <span className="eyebrow">
-                        {selected.groupId === COMMUNITY_ID
-                          ? "COMMUNITY TRACK"
-                          : selected.groupId
-                            ? "GROUP TRACK"
-                            : selected.builtin
-                              ? "OFF MUSIC ORIGINAL"
-                              : "MY AUDIO"}
+                        {selected.visibility === "private"
+                          ? "PRIVATE TRACK"
+                          : selected.groupId === COMMUNITY_ID
+                            ? "COMMUNITY TRACK"
+                            : selected.groupId
+                              ? "GROUP TRACK"
+                              : selected.builtin
+                                ? "OFF MUSIC ORIGINAL"
+                                : "MY AUDIO"}
                       </span>
                       <h3>{selected.title}</h3>
                       <p>{selected.artist}</p>
@@ -2398,6 +2450,20 @@ export default function App() {
                     </div>
                   </div>
                   <Wave analysis={selected.analysis} />
+                  {!selected.builtin &&
+                    (selected.owned || !selected.groupId) && (
+                      <button
+                        className="quiet wide"
+                        onClick={() => {
+                          setManagedSong(selected);
+                          setPanel("song-manage");
+                        }}
+                      >
+                        <Settings2 size={16} />
+                        公開範囲・削除
+                      </button>
+                    )}
+
                   <div className="difficulty-options">
                     {DIFFICULTIES.map((d) => (
                       <button
@@ -2482,13 +2548,15 @@ export default function App() {
                     <span>
                       {QA_MODE
                         ? "QA · 保存なし"
-                        : selected.arrangement ||
-                            selected.bpmOverride ||
-                            settings.speed !== 1
-                          ? "練習モード"
-                          : user && (selected.builtin || selected.groupId)
-                            ? "ランキングに反映"
-                            : "個人記録"}
+                        : selected.visibility === "private"
+                          ? "非公開 · 個人記録"
+                          : selected.arrangement ||
+                              selected.bpmOverride ||
+                              settings.speed !== 1
+                            ? "練習モード"
+                            : user && (selected.builtin || selected.groupId)
+                              ? "ランキングに反映"
+                              : "個人記録"}
                     </span>
                   </div>
                   <button
@@ -2508,27 +2576,10 @@ export default function App() {
                     ).toFixed(2)}
                     秒 · 流速自動
                   </p>
-                  {user && groups.length > 0 && (
-                    <label>
-                      記録するグループ
-                      <select
-                        disabled={!!selected.groupId}
-                        value={selected.groupId || groupId}
-                        onChange={(e) => setGroupId(e.target.value)}
-                      >
-                        <option value="">個人のみ</option>
-                        {groups.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
                   <details className="advanced">
                     <summary>
                       <Sparkles size={16} />
-                      AIアレンジ・共有
+                      AIアレンジ
                     </summary>
                     <p>
                       Workers
@@ -2565,45 +2616,6 @@ export default function App() {
                         標準譜面に戻す
                       </button>
                     )}
-                    {!selected.builtin &&
-                      !selected.groupId &&
-                      user &&
-                      groups.length > 0 && (
-                        <div className="share-song">
-                          <h4>グループに音源を共有</h4>
-                          <select
-                            aria-label="音源の共有先"
-                            value={shareGroup}
-                            onChange={(e) => setShareGroup(e.target.value)}
-                          >
-                            <option value="">共有先を選択</option>
-                            {groups.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.name}
-                              </option>
-                            ))}
-                          </select>
-                          <label className="checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={rights}
-                              onChange={(e) => setRights(e.target.checked)}
-                            />
-                            この音源をグループ内で配信・再配布できる権利があります
-                          </label>
-                          <button
-                            className="quiet wide"
-                            disabled={busy || !shareGroup || !rights}
-                            onClick={shareSong}
-                          >
-                            <Share2 size={16} />
-                            音源と譜面を共有
-                          </button>
-                          <small>
-                            音源はCloudflareに保存され、参加者だけが再生できます。
-                          </small>
-                        </div>
-                      )}
                   </details>
                 </div>
               )}
@@ -2615,8 +2627,8 @@ export default function App() {
                     D1へ保存します。
                   </p>
                   <p>
-                    「みんなの曲」へ追加した音源はGoogleログインした全ユーザーへ公開します。グループ限定曲は参加者だけが再生できます。音源はCloudflare
-                    R2へ保存します。グループ内では表示名・レベル・スコアを共有します。招待リンクは信頼できる人だけに渡してください。
+                    「みんなの曲」へ追加した音源はゲストを含むサイト利用者全員へ公開します。非公開の曲は投稿者本人だけが再生できます。音源はCloudflare
+                    R2へ保存します。ランキングには専用の表示名・レベル・スコアを表示します。自分の曲から公開範囲の変更・削除・復元ができます。
                   </p>
                   <p>
                     ランキングは標準譜面・1倍速の打鍵記録をサーバーで再判定します。

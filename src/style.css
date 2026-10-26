@@ -4780,3 +4780,118 @@ body.tutorial-active .app-v2 {
     padding: 12px;
   }
 }
+
+/* Uploader-owned song controls */
+.library-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0;
+}
+.library-actions small {
+  color: var(--muted);
+}
+.owned-songs,
+.song-manager {
+  display: grid;
+  gap: 16px;
+}
+.owned-songs > p,
+.song-manager p {
+  color: var(--muted);
+  line-height: 1.7;
+}
+.owned-song {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  padding: 18px;
+  min-height: 72px;
+  border-radius: 22px;
+}
+.owned-song > span {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+}
+.owned-song strong,
+.managed-title h3 {
+  overflow-wrap: anywhere;
+}
+.owned-song small {
+  color: var(--muted);
+}
+.owned-song > svg {
+  flex-shrink: 0;
+}
+.deleted-songs {
+  display: grid;
+}
+.deleted-songs summary {
+  cursor: pointer;
+  padding: 14px 0;
+}
+.deleted-songs .owned-song {
+  margin-top: 12px;
+  opacity: 0.8;
+}
+.managed-title {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+}
+.managed-title > div {
+  min-width: 0;
+}
+.managed-title > svg {
+  flex-shrink: 0;
+}
+.managed-title h3 {
+  margin: 0 0 8px;
+  font-size: 22px;
+}
+.managed-title small {
+  color: var(--muted);
+}
+.publish-controls,
+.delete-controls {
+  display: grid;
+  gap: 14px;
+}
+.publish-controls p,
+.delete-controls p {
+  margin: 0;
+}
+.song-manager button {
+  min-height: 44px;
+  white-space: normal;
+}
+.song-manager .checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.65;
+}
+.song-manager .checkbox-label input {
+  flex-shrink: 0;
+  margin-top: 5px;
+}
+.delete-controls {
+  border-top: 1px solid rgba(104, 89, 153, 0.16);
+  padding-top: 20px;
+}
+.danger {
+  color: #bd3652;
+}
+.community-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}

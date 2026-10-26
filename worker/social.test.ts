@@ -286,11 +286,18 @@ async function publish(who = "alice", seed = 1) {
     rightsConfirmed: true,
   });
   expect(response.status).toBe(200);
-  const { id } = (await response.json()) as any;
-  expect(
-    (await request(`/groups/${community}/songs/${id}/audio`, who, bytes, "PUT"))
-      .status,
-  ).toBe(200);
+  const { id, status } = (await response.json()) as any;
+  if (status !== "ready")
+    expect(
+      (
+        await request(
+          `/groups/${community}/songs/${id}/audio`,
+          who,
+          bytes,
+          "PUT",
+        )
+      ).status,
+    ).toBe(200);
   return id;
 }
 async function finishPerfect(ticket: string, who = "alice") {
@@ -572,5 +579,281 @@ describe("旧方式との成績分離", () => {
       await request(`/groups/${g.id}/rankings`)
     ).json()) as any;
     expect(current.rows[0].score).toBe(123456);
+  });
+});
+
+const publicGet = (path: string) =>
+  app.request("https://off.test/api/catalog" + path, {}, env);
+async function sharedStart(songId: string, who = "alice", practice = false) {
+  return request("/plays", who, {
+    chartVersion: CHART_VERSION,
+    songId,
+    title: "Untrusted",
+    duration: analysis.duration,
+    difficulty: "normal",
+    speed: 1,
+    practice,
+    groupId: community,
+    notes: createChart(analysis, "normal"),
+  });
+}
+describe("全訪問者への公開と追加本人の管理", () => {
+  it("未ログインでも公開一覧・解析・音源・順位を読み、Googleの識別子は公開しない", async () => {
+    const id = await publish();
+    const r = await publicGet("/songs"),
+      body = (await r.json()) as any;
+    expect(r.status).toBe(200);
+    expect(r.headers.get("Cache-Control")).toBe("no-store");
+    expect(body.songs).toHaveLength(1);
+    expect(body.songs[0]).toMatchObject({
+      id,
+      owned: false,
+      visibility: "public",
+      source: `/api/catalog/songs/${id}/audio`,
+    });
+    expect(body.songs[0]).not.toHaveProperty("creator_id");
+    expect(body.songs[0]).not.toHaveProperty("hash");
+    expect((await publicGet(`/songs/${id}/analysis`)).status).toBe(200);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(200);
+    const { ticket } = (await (await sharedStart(id)).json()) as any;
+    await finishPerfect(ticket);
+    const rank = (await (await publicGet("/rankings")).json()) as any;
+    expect(rank.rows).toHaveLength(1);
+    expect(rank.rows[0].score).toBe(1000000);
+    expect(rank.rows[0]).not.toHaveProperty("user_id");
+  });
+  it("非公開化で一覧・解析・音源・発見・既存順位を隠し、本人だけが再生できる", async () => {
+    const id = await publish();
+    await request("/groups", "bob");
+    const { ticket } = (await (await sharedStart(id)).json()) as any;
+    await finishPerfect(ticket);
+    expect(
+      (
+        await request(
+          `/songs/${id}`,
+          "alice",
+          { visibility: "private" },
+          "PATCH",
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      ((await (await publicGet("/songs")).json()) as any).songs,
+    ).toHaveLength(0);
+    for (const suffix of ["audio", "analysis"]) {
+      expect((await publicGet(`/songs/${id}/${suffix}`)).status).toBe(404);
+      expect(
+        (await request(`/groups/${community}/songs/${id}/${suffix}`, "bob"))
+          .status,
+      ).toBe(404);
+      expect(
+        (await request(`/groups/${community}/songs/${id}/${suffix}`, "alice"))
+          .status,
+      ).toBe(200);
+    }
+    expect(
+      ((await (await publicGet("/rankings")).json()) as any).rows,
+    ).toHaveLength(0);
+    expect(
+      ((await (await publicGet(`/rankings?song=${id}`)).json()) as any).rows,
+    ).toHaveLength(0);
+    expect(
+      ((await (await publicGet("/discovery")).json()) as any).stats,
+    ).toHaveLength(0);
+    expect(
+      ((await (await request("/songs", "alice")).json()) as any).songs[0],
+    ).toMatchObject({ id, owned: true, visibility: "private" });
+    expect(
+      messages
+        .map((s) => JSON.parse(s))
+        .filter((e) => e.type === "songs.changed")
+        .every((e) => Object.keys(e).every((k) => ["type", "at"].includes(k))),
+    ).toBe(true);
+  });
+  it("他人と未ログインからの公開範囲変更・削除・復元を拒否する", async () => {
+    const id = await publish();
+    for (const who of ["bob", "anonymous"]) {
+      expect(
+        (await request(`/songs/${id}`, who, { visibility: "private" }, "PATCH"))
+          .status,
+      ).toBe(who === "bob" ? 404 : 401);
+      expect((await request(`/songs/${id}`, who, {}, "DELETE")).status).toBe(
+        who === "bob" ? 404 : 401,
+      );
+      expect((await request(`/songs/${id}/restore`, who, {})).status).toBe(
+        who === "bob" ? 404 : 401,
+      );
+    }
+    expect(
+      ((await (await request("/songs", "bob")).json()) as any).songs,
+    ).toHaveLength(0);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(200);
+  });
+  it("削除は再生不可のごみ箱に入り、復元は非公開、再公開には明示の権利確認が必要", async () => {
+    const id = await publish();
+    expect((await request(`/songs/${id}`, "alice", {}, "DELETE")).status).toBe(
+      200,
+    );
+    expect(
+      ((await (await request("/songs")).json()) as any).songs[0].visibility,
+    ).toBe("deleted");
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(404);
+    expect(
+      (await request(`/groups/${community}/songs/${id}/audio`)).status,
+    ).toBe(404);
+    expect(
+      (
+        await request(
+          `/groups/${community}/songs/${id}/audio`,
+          "alice",
+          new Uint8Array([1, 2, 3]).buffer,
+          "PUT",
+        )
+      ).status,
+    ).toBe(400);
+    expect((await request(`/songs/${id}/restore`, "alice", {})).status).toBe(
+      200,
+    );
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(404);
+    expect(
+      (
+        await request(
+          `/songs/${id}`,
+          "alice",
+          { visibility: "public" },
+          "PATCH",
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(
+          `/songs/${id}`,
+          "alice",
+          { visibility: "public", rightsConfirmed: true },
+          "PATCH",
+        )
+      ).status,
+    ).toBe(200);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(200);
+  });
+  it("非公開で追加してもPUTの再送で勝手に公開されず、別人が同じハッシュで取得できない", async () => {
+    await request("/groups");
+    await request("/groups", "bob");
+    const bytes = new Uint8Array([8, 9, 10]).buffer,
+      digest = Array.from(
+        new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+        (n) => n.toString(16).padStart(2, "0"),
+      ).join("");
+    const payload = {
+      title: "Private vocal",
+      artist: "QA",
+      hash: digest,
+      size: 3,
+      analysis,
+      visibility: "private",
+      rightsConfirmed: false,
+    };
+    const result = await request(
+      `/groups/${community}/songs`,
+      "alice",
+      payload,
+    );
+    expect(result.status).toBe(200);
+    const { id, status } = (await result.json()) as any;
+    expect(status).toBe("uploading-private");
+    for (let i = 0; i < 2; i++)
+      expect(
+        (
+          await request(
+            `/groups/${community}/songs/${id}/audio`,
+            "alice",
+            bytes,
+            "PUT",
+          )
+        ).status,
+      ).toBe(200);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(404);
+    expect(
+      sql.prepare("SELECT status FROM group_songs WHERE id=?").get(id)?.status,
+    ).toBe("private");
+    expect(
+      (
+        await request(`/groups/${community}/songs`, "bob", {
+          ...payload,
+          visibility: "public",
+          rightsConfirmed: true,
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request(`/groups/${community}/songs/${id}/audio`, "bob")).status,
+    ).toBe(404);
+  });
+  it("同じ公開音源の追加は所有権を与えない", async () => {
+    const id = await publish("alice", 4);
+    expect(await publish("bob", 4)).toBe(id);
+    expect(
+      ((await (await request("/songs", "bob")).json()) as any).songs,
+    ).toHaveLength(0);
+    expect((await request(`/songs/${id}`, "bob", {}, "DELETE")).status).toBe(
+      404,
+    );
+  });
+  it("公開終了後の古い譜面でのプレイ開始・保存を拒否し、本人の非公開プレイは順位へ出さない", async () => {
+    const id = await publish();
+    await request("/groups", "bob");
+    const { ticket } = (await (await sharedStart(id, "bob")).json()) as any;
+    await request(`/songs/${id}`, "alice", { visibility: "private" }, "PATCH");
+    expect((await sharedStart(id, "bob", true)).status).toBe(404);
+    sql
+      .prepare("UPDATE plays SET started_at=? WHERE id=?")
+      .run(Date.now() - analysis.duration * 1000 - 4000, ticket);
+    expect(
+      (await request(`/plays/${ticket}/finish`, "bob", { hits: [] })).status,
+    ).toBe(404);
+    const mine = (await (await sharedStart(id)).json()) as any;
+    expect(mine.ranked).toBe(false);
+    const finished = await finishPerfect(mine.ticket);
+    expect(finished.result.ranked).toBe(false);
+    expect(
+      ((await (await publicGet("/rankings")).json()) as any).rows,
+    ).toHaveLength(0);
+    await request(`/songs/${id}`, "alice", {}, "DELETE");
+    expect((await sharedStart(id, "alice", true)).status).toBe(404);
+  });
+  it("以前の限定曲は勝手に全体公開せず、本人の明示公開で全訪問者が利用可能", async () => {
+    const g = await group(),
+      bytes = new Uint8Array([19, 2, 3]).buffer,
+      digest = Array.from(
+        new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
+        (n) => n.toString(16).padStart(2, "0"),
+      ).join("");
+    const { id } = (await (
+      await request(`/groups/${g.id}/songs`, "alice", {
+        title: "Legacy",
+        artist: "QA",
+        hash: digest,
+        size: 3,
+        analysis,
+        rightsConfirmed: true,
+      })
+    ).json()) as any;
+    await request(`/groups/${g.id}/songs/${id}/audio`, "alice", bytes, "PUT");
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(404);
+    expect(
+      (
+        await request(
+          `/songs/${id}`,
+          "alice",
+          { visibility: "public", rightsConfirmed: true },
+          "PATCH",
+        )
+      ).status,
+    ).toBe(200);
+    expect((await publicGet(`/songs/${id}/audio`)).status).toBe(200);
+    expect((await request(`/groups/${g.id}/songs/${id}/audio`)).status).toBe(
+      404,
+    );
   });
 });

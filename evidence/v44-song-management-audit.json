@@ -1,0 +1,57 @@
+{
+  "version": "4.4.0",
+  "chartVersion": "lanes-v4.1",
+  "tests": 146,
+  "testFiles": 10,
+  "source": "existing licensed Japanese vocal MP3; localhost only",
+  "analysis": {
+    "duration": 32.4135,
+    "bpm": 133.4,
+    "peaks": 378,
+    "normalNotes": 105,
+    "normalPoints": 135
+  },
+  "uiTransitions": [
+    "upload private",
+    "publish with rights confirmation",
+    "hide from guests",
+    "delete",
+    "restore as private",
+    "owner completes private play without ranking",
+    "publish appears on guest tab via websocket",
+    "guest starts audio and chart",
+    "owner hides while guest playing; guest game closes"
+  ],
+  "ownerPrivatePlay": {
+    "score": 0,
+    "miss": 135,
+    "xp": 20,
+    "ranked": false,
+    "intentionalNoInput": true,
+    "localDataResetAfterTest": true
+  },
+  "guest": {
+    "origin": "127.0.0.1",
+    "authenticated": false,
+    "mode": "qa=1",
+    "writes": false,
+    "googleOriginWarning": "127.0.0.1 is not registered for OAuth; no authentication attempted"
+  },
+  "layout": {
+    "width320": {
+      "documentWidth": 320,
+      "buttonMinHeight": 44
+    },
+    "managerScreenshotWidth": 390
+  },
+  "productionReset": {
+    "rankings": 0,
+    "results": 0,
+    "xpEvents": 0,
+    "readyAddedSongs": 0,
+    "n1Archived": 1,
+    "builtinRetained": "Play & Pay",
+    "tutorialHistoryRetained": true
+  },
+  "deployment": "7d1b91c7-7856-4fbb-b53c-62bfe99da63f"
+}

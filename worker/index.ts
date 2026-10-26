@@ -13,6 +13,7 @@ import { calculateScore } from "../src/lib/chart.ts";
 import type { Env, Account } from "./env.ts";
 import social from "./social.ts";
 import resets from "./reset.ts";
+import { catalog, songManagement } from "./catalog.ts";
 import { joinCommunity } from "./community.ts";
 export { LeaderboardRoom } from "./room.ts";
 const app = new Hono<{ Bindings: Env; Variables: { user: Account } }>();
@@ -72,14 +73,14 @@ app.get("/api/config", (c) =>
   c.json({
     googleClientId: c.env.GOOGLE_CLIENT_ID || null,
     ai: !!c.env.AI,
-    version: "4.3.1",
+    version: "4.4.0",
   }),
 );
 app.get("/api/health", async (c) => {
   await c.env.DB.prepare("SELECT 1").first();
   return c.json({
     ok: true,
-    version: "4.3.1",
+    version: "4.4.0",
     google: !!c.env.GOOGLE_CLIENT_ID,
     ai: !!c.env.AI,
   });
@@ -161,6 +162,7 @@ app.post("/api/auth/logout", async (c) => {
   deleteCookie(c, "off_session", { path: "/api" });
   return c.json({ ok: true });
 });
+app.route("/api/catalog", catalog);
 app.use("/api/me/*", async (c, next) => {
   const token = getCookie(c, "off_session");
   if (!token) return c.json({ error: "Googleでログインしてください" }, 401);
@@ -183,6 +185,7 @@ app.use("/api/me/*", async (c, next) => {
 });
 app.route("/api/me", social);
 app.route("/api/me", resets);
+app.route("/api/me", songManagement);
 app.get("/api/me/profile", (c) => c.json({ user: c.get("user") }));
 app.post("/api/me/logout", async (c) => {
   const token = getCookie(c, "off_session");

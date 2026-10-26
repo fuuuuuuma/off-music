@@ -84,18 +84,23 @@ export const joinSchema = z.object({
   code: z.string().trim().min(16).max(64),
   displayName: z.string().trim().min(1).max(30),
 });
-export const songSchema = z.object({
-  title: z.string().trim().min(1).max(140),
-  artist: z.string().trim().max(80),
-  hash: z.string().regex(/^[a-f0-9]{64}$/),
-  size: z
-    .number()
-    .int()
-    .min(1)
-    .max(20 * 1024 * 1024),
-  analysis: analysisSchema,
-  rightsConfirmed: z.literal(true),
-});
+export const songSchema = z
+  .object({
+    visibility: z.enum(["public", "private"]).optional(),
+    title: z.string().trim().min(1).max(140),
+    artist: z.string().trim().max(80),
+    hash: z.string().regex(/^[a-f0-9]{64}$/),
+    size: z
+      .number()
+      .int()
+      .min(1)
+      .max(20 * 1024 * 1024),
+    analysis: analysisSchema,
+    rightsConfirmed: z.boolean().optional(),
+  })
+  .refine((d) => d.visibility === "private" || d.rightsConfirmed === true, {
+    message: "サイト利用者全員への配信・再配布の権利を確認してください",
+  });
 export const startSchema = z.object({
   chartVersion: z.string().max(40).optional(),
   songId: z.string().min(1).max(100),

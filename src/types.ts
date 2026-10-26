@@ -75,6 +75,8 @@ export interface Song {
   arrangement?: Arrangement;
   groupId?: string;
   creatorName?: string;
+  owned?: boolean;
+  visibility?: "public" | "private" | "group" | "deleted";
   hash?: string;
   canonical?: boolean;
   analysisLoaded?: boolean;
@@ -152,6 +154,7 @@ export interface Group {
   id: string;
   name: string;
   displayName: string;
+  memberId?: string;
   owner: boolean;
   members: number;
   inviteCode?: string;
